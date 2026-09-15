@@ -1,0 +1,3837 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generador de Chapas Pro — Creador de Plantillas e Impresión</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#7C3AED">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Chapas Pro">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-app: #0F0E17;
+    --surface-1: #1A1926;
+    --surface-2: #242236;
+    --surface-3: #32304A;
+    --surface-border: #3E3B5B;
+    
+    --accent-purple: #7C3AED;
+    --accent-purple-light: #A78BFA;
+    --accent-pink: #F43F5E;
+    --accent-pink-hover: #E11D48;
+    --accent-amber: #F59E0B;
+    --accent-cyan: #06B6D4;
+    --accent-emerald: #10B981;
+
+    --text-primary: #F8FAFC;
+    --text-secondary: #94A3B8;
+    --text-muted: #64748B;
+
+    --canvas-bg: #12111D;
+    --guide-cut: #F43F5E;
+    --guide-bleed: #06B6D4;
+    --guide-safe: #F59E0B;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    max-height: 100vh;
+    overflow: hidden;
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg-app);
+    color: var(--text-primary);
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+  }
+  /* CUSTOM GLOWING SCROLLBARS */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: rgba(18, 17, 29, 0.85);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(139, 92, 246, 0.5);
+    border-radius: 6px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-purple-light);
+  }
+  * { scrollbar-width: thin; scrollbar-color: rgba(139, 92, 246, 0.5) rgba(18, 17, 29, 0.85); }
+
+  /* HEADER */
+  header {
+    background: var(--surface-1);
+    border-bottom: 1px solid var(--surface-border);
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    z-index: 10;
+    flex: none;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .brand-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent-purple), var(--accent-pink));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    box-shadow: 0 4px 14px rgba(244, 63, 94, 0.35);
+  }
+  .brand h1 {
+    font-family: 'Archivo', sans-serif;
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    background: linear-gradient(to right, #FFF, #DDD6FE);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .brand-sub {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    min-width: 0;
+    flex-shrink: 1;
+    padding-bottom: 2px;
+  }
+  .header-actions::-webkit-scrollbar {
+    height: 4px;
+  }
+  .header-actions > * {
+    flex-shrink: 0;
+  }
+  .badge-stat {
+    background: var(--surface-2);
+    border: 1px solid var(--surface-border);
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--accent-purple-light);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .badge-stat span.val {
+    color: #FFF;
+  }
+
+  .btn {
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+  .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed !important;
+    transform: none !important;
+    box-shadow: none !important;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent-pink), #E11D48);
+    color: #FFF;
+    box-shadow: 0 4px 14px rgba(244, 63, 94, 0.3);
+  }
+  .btn-primary:not(:disabled):hover {
+    background: var(--accent-pink-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(244, 63, 94, 0.45);
+  }
+  .btn-secondary {
+    background: var(--surface-2);
+    color: var(--text-primary);
+    border: 1px solid var(--surface-border);
+  }
+  .btn-secondary:not(:disabled):hover {
+    background: var(--surface-3);
+    border-color: var(--accent-purple-light);
+  }
+  .btn-outline-cyan {
+    background: rgba(6, 182, 212, 0.1);
+    color: var(--accent-cyan);
+    border: 1px solid rgba(6, 182, 212, 0.3);
+  }
+  .btn-outline-cyan:not(:disabled):hover {
+    background: rgba(6, 182, 212, 0.2);
+    border-color: var(--accent-cyan);
+  }
+  .btn-sm {
+    padding: 5px 10px;
+    font-size: 12px;
+    border-radius: 6px;
+  }
+
+  .btn-group-toggle {
+    display: flex;
+    background: var(--surface-2);
+    border: 1px solid var(--surface-border);
+    border-radius: 8px;
+    overflow: hidden;
+    padding: 2px;
+    gap: 2px;
+    width: 100%;
+  }
+  .btn-toggle {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    padding: 7px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+    font-family: 'Inter', sans-serif;
+  }
+  .btn-toggle:hover {
+    color: #FFF;
+    background: var(--surface-3);
+  }
+  .btn-toggle.active {
+    background: var(--accent-purple);
+    color: #FFF;
+    box-shadow: 0 2px 8px rgba(124, 58, 237, 0.4);
+  }
+  #groupGlobalViewMode {
+    background: var(--surface-2);
+    border: 1.5px solid rgba(139, 92, 246, 0.45);
+    box-shadow: 0 0 14px rgba(124, 58, 237, 0.2);
+    padding: 2px;
+    border-radius: 9px;
+  }
+  #groupGlobalViewMode .btn-toggle {
+    padding: 6px 13px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .btn-toggle[data-mode="real3d"] {
+    border: 1px solid rgba(236, 72, 153, 0.35);
+  }
+  .btn-toggle[data-mode="real3d"].active {
+    background: linear-gradient(135deg, #EC4899, #8B5CF6) !important;
+    color: #FFF !important;
+    box-shadow: 0 2px 14px rgba(236, 72, 153, 0.55) !important;
+    border-color: #F472B6 !important;
+  }
+
+  .save-indicator {
+    font-size: 11.5px;
+    color: var(--accent-emerald);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+  }
+  .save-indicator.saving {
+    color: var(--accent-amber);
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.25);
+  }
+
+  /* PROJECT NAME & PWA STYLES */
+  .project-name-box {
+    display: flex;
+    align-items: center;
+    background: var(--surface-2);
+    border: 1px solid var(--surface-border);
+    border-radius: 8px;
+    padding: 3px 10px;
+    gap: 8px;
+    transition: border-color 0.2s;
+  }
+  .project-name-box:focus-within {
+    border-color: var(--accent-purple-light);
+    box-shadow: 0 0 10px rgba(124, 58, 237, 0.25);
+  }
+  .project-label {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--accent-purple-light);
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .project-name-input {
+    background: transparent;
+    border: none;
+    color: #FFF;
+    font-size: 13px;
+    font-weight: 600;
+    width: 140px;
+    padding: 3px 0;
+    outline: none;
+    font-family: 'Inter', sans-serif;
+  }
+  .project-name-input::placeholder {
+    color: var(--text-muted);
+    font-weight: 400;
+  }
+  .btn-pwa-install {
+    background: linear-gradient(135deg, #10B981, #059669);
+    color: #FFF;
+    border: none;
+    font-weight: 700;
+    box-shadow: 0 2px 10px rgba(16, 185, 129, 0.4);
+    animation: pulseInstall 2.2s infinite;
+  }
+  .btn-pwa-install:hover {
+    background: linear-gradient(135deg, #059669, #047857);
+    color: #FFF;
+  }
+  @keyframes pulseInstall {
+    0%, 100% { box-shadow: 0 2px 10px rgba(16, 185, 129, 0.4); }
+    50% { box-shadow: 0 2px 18px rgba(16, 185, 129, 0.7); }
+  }
+  .tab-title-text {
+    cursor: pointer;
+    border-bottom: 1px dotted rgba(255,255,255,0.3);
+  }
+  .tab-title-text:hover {
+    border-bottom-color: #FFF;
+  }
+
+  /* WORKSPACE LAYOUT FULLY RESPONSIVE */
+  .workspace {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 260px 1fr 340px;
+    min-height: 0;
+    overflow: hidden;
+    position: relative;
+    transition: grid-template-columns 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .workspace.hide-config {
+    grid-template-columns: 0px 1fr 340px;
+  }
+  .workspace.hide-inspector {
+    grid-template-columns: 260px 1fr 0px;
+  }
+  .workspace.hide-config.hide-inspector {
+    grid-template-columns: 0px 1fr 0px;
+  }
+  .workspace.hide-config .config-panel {
+    transform: translateX(-100%);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .workspace.hide-inspector .inspector-panel {
+    transform: translateX(100%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* ADAPTACIÓN AUTOMÁTICA A NOTEBOOKS Y PANTALLAS ESCALADAS (1000px - 1366px) */
+  @media (max-width: 1366px) {
+    .workspace {
+      grid-template-columns: 250px 1fr 275px;
+    }
+    .workspace.hide-config {
+      grid-template-columns: 0px 1fr 275px;
+    }
+    .workspace.hide-inspector {
+      grid-template-columns: 250px 1fr 0px;
+    }
+    .config-panel, .inspector-panel {
+      padding: 12px;
+      gap: 12px;
+    }
+    .badge-preview-circle {
+      width: 150px !important;
+      height: 150px !important;
+    }
+    .badge-preview-box {
+      padding: 10px;
+    }
+    .tray-container {
+      height: 110px;
+      padding: 8px 12px;
+      gap: 12px;
+    }
+    .tray-uploader {
+      width: 95px;
+      height: 94px;
+      padding: 4px;
+      font-size: 11px;
+    }
+    .tray-thumb {
+      width: 80px;
+      height: 80px;
+    }
+    .header-actions {
+      gap: 6px;
+    }
+    .badge-stat {
+      padding: 4px 8px;
+      font-size: 11px;
+    }
+  }
+
+  /* PANTALLAS PEQUEÑAS Y TABLETS (< 950px): CAJONES DESLIZABLES OVERLAY */
+  @media (max-width: 950px) {
+    .workspace {
+      grid-template-columns: 1fr;
+    }
+    .config-panel {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 290px;
+      z-index: 100;
+      box-shadow: 4px 0 24px rgba(0,0,0,0.8);
+      transform: translateX(-100%);
+      transition: transform 0.25s ease, opacity 0.2s ease;
+      background: #141320;
+    }
+    .config-panel.open-drawer {
+      transform: translateX(0) !important;
+      opacity: 1 !important;
+      pointer-events: auto !important;
+    }
+    .inspector-panel {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 300px;
+      z-index: 100;
+      box-shadow: -4px 0 24px rgba(0,0,0,0.8);
+      transform: translateX(100%);
+      transition: transform 0.25s ease, opacity 0.2s ease;
+      background: #141320;
+    }
+    .inspector-panel.open-drawer {
+      transform: translateX(0) !important;
+      opacity: 1 !important;
+      pointer-events: auto !important;
+    }
+    .header-actions .badge-stat {
+      display: none;
+    }
+    .project-name-input {
+      width: 100px;
+    }
+  }
+
+  /* SIDEBAR LEFT: CONFIG */
+  .config-panel {
+    background: var(--surface-1);
+    border-right: 1px solid var(--surface-border);
+    padding: 18px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-height: 0;
+  }
+  .panel-title {
+    font-family: 'Archivo', sans-serif;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent-purple-light);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+  .form-group:last-child { margin-bottom: 0; }
+  .form-label {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .form-label .val {
+    color: var(--accent-purple-light);
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+  }
+  select, input[type=number], input[type=text] {
+    background: var(--surface-2);
+    border: 1px solid var(--surface-border);
+    border-radius: 8px;
+    color: #FFF;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    outline: none;
+    transition: border-color 0.15s;
+    width: 100%;
+  }
+  select:focus, input:focus {
+    border-color: var(--accent-purple-light);
+  }
+  input[type=range] {
+    accent-color: var(--accent-purple);
+    width: 100%;
+    cursor: pointer;
+  }
+  .row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .toggle-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+  }
+  .toggle-check input {
+    accent-color: var(--accent-purple);
+    width: 16px;
+    height: 16px;
+  }
+
+  .guide-legend {
+    background: var(--surface-2);
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 12px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+  }
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex: none;
+  }
+
+  /* CENTER: CANVAS AREA */
+  .canvas-workspace {
+    background: var(--canvas-bg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    min-height: 0;
+  }
+
+  /* SHEET TABS BAR */
+  .sheet-tabs-bar {
+    background: var(--surface-1);
+    border-bottom: 1px solid var(--surface-border);
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex: none;
+  }
+  .tabs-list {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+  .sheet-tab {
+    background: var(--surface-2);
+    border: 1px solid var(--surface-border);
+    color: var(--text-secondary);
+    border-radius: 7px;
+    padding: 6px 12px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .sheet-tab:hover {
+    background: var(--surface-3);
+    color: var(--text-primary);
+  }
+  .sheet-tab.active {
+    background: var(--accent-purple);
+    color: #FFF;
+    border-color: var(--accent-purple-light);
+    box-shadow: 0 2px 8px rgba(124, 58, 237, 0.4);
+  }
+  .sheet-tab .close-tab {
+    opacity: 0.6;
+    font-size: 14px;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: 0.15s;
+  }
+  .sheet-tab .close-tab:hover {
+    opacity: 1;
+    background: rgba(255,255,255,0.25);
+  }
+  .add-sheet-btn {
+    background: transparent;
+    border: 1px dashed var(--surface-border);
+    color: var(--accent-purple-light);
+    border-radius: 7px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: 0.15s;
+  }
+  .add-sheet-btn:hover {
+    border-color: var(--accent-purple);
+    background: rgba(124, 58, 237, 0.1);
+  }
+
+  .canvas-tools-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .zoom-tool {
+    display: flex;
+    align-items: center;
+    background: var(--surface-2);
+    border: 1px solid var(--surface-border);
+    border-radius: 7px;
+    overflow: hidden;
+  }
+  .zoom-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 13px;
+  }
+  .zoom-btn:hover { background: var(--surface-3); }
+  .zoom-val {
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    padding: 0 6px;
+    color: var(--text-secondary);
+  }
+
+  /* CANVAS SCROLL WRAPPER */
+  .canvas-viewport {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    position: relative;
+    user-select: none;
+    min-height: 0;
+  }
+  .sheet-paper {
+    background: #FFFFFF;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08);
+    border-radius: 4px;
+    position: relative;
+    transition: transform 0.1s ease-out;
+    transform-origin: center center;
+  }
+  #sheetCanvas {
+    display: block;
+    cursor: crosshair;
+    border-radius: 4px;
+  }
+  #sheetCanvas.panning-img {
+    cursor: grabbing !important;
+  }
+  #sheetCanvas.hovering-badge {
+    cursor: grab;
+  }
+
+  /* QUICK INTERACTION HINT OVERLAY */
+  .canvas-hint {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(26, 25, 38, 0.92);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--surface-border);
+    padding: 6px 14px;
+    border-radius: 30px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    pointer-events: none;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    z-index: 5;
+  }
+  .canvas-hint span.key {
+    background: var(--surface-3);
+    color: #FFF;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  /* SIDEBAR RIGHT: CHAPA INSPECTOR */
+  .inspector-panel {
+    background: var(--surface-1);
+    border-left: 1px solid var(--surface-border);
+    padding: 12px 14px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
+  }
+  .inspector-panel > * {
+    flex-shrink: 0;
+  }
+  #groupPreviewMode {
+    display: none !important; /* Ya está integrado y destacado en la barra superior de la hoja */
+  }
+  .badge-preview-box {
+    background: var(--surface-2);
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    width: 100%;
+  }
+  .badge-preview-circle {
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.55), 0 0 0 2px rgba(124, 58, 237, 0.4);
+    border: 3px solid var(--accent-purple);
+    background: #181622;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 4px 0;
+    cursor: grab;
+    transition: transform 0.15s, border-color 0.15s;
+  }
+  .badge-preview-circle:hover {
+    border-color: var(--accent-purple-light);
+  }
+  .chip-guide {
+    transition: all 0.15s ease;
+    user-select: none;
+  }
+  .chip-guide:hover, .chip-guide.active {
+    background: var(--surface-2) !important;
+    transform: translateY(-1px);
+  }
+  .chip-guide[data-guide="cut"]:hover, .chip-guide[data-guide="cut"].active {
+    border-top-color: #FF2222 !important;
+    box-shadow: 0 2px 10px rgba(239, 68, 68, 0.4);
+  }
+  .chip-guide[data-guide="bleed"]:hover, .chip-guide[data-guide="bleed"].active {
+    border-top-color: #22D3EE !important;
+    box-shadow: 0 2px 10px rgba(6, 182, 212, 0.4);
+  }
+  .chip-guide[data-guide="front"]:hover, .chip-guide[data-guide="front"].active {
+    border-top-color: #FBBF24 !important;
+    box-shadow: 0 2px 10px rgba(245, 158, 11, 0.4);
+  }
+  #badgeInspectorCanvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: grab;
+  }
+  #badgeInspectorCanvas.panning-img {
+    cursor: grabbing !important;
+  }
+  .badge-cell-tag {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent-purple-light);
+    background: var(--surface-3);
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  /* LEYENDA ANATÓMICA COMPACTA: 3 CHIPS EN 1 FILA */
+  .anatomy-legend {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 5px;
+    width: 100%;
+    margin-top: 6px;
+  }
+  .anatomy-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 2px;
+    border-radius: 6px;
+    background: var(--surface-3);
+    border: 1px solid var(--surface-border);
+    transition: background 0.15s;
+    text-align: center;
+    gap: 2px;
+  }
+  .anatomy-tag {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-weight: 600;
+    font-size: 10px;
+    color: var(--text-secondary);
+  }
+  .anatomy-row .mono {
+    font-size: 11px;
+    line-height: 1;
+  }
+
+  .inspector-panel .form-group {
+    margin-bottom: 4px;
+    gap: 3px;
+  }
+  .inspector-panel .form-label {
+    font-size: 11.5px;
+  }
+  .inspector-panel input[type=range] {
+    height: 16px;
+    margin: 2px 0;
+  }
+
+  .btn-maximize {
+    background: linear-gradient(135deg, #06B6D4, #3B82F6);
+    color: #FFF;
+    box-shadow: 0 3px 12px rgba(6, 182, 212, 0.35);
+    width: 100%;
+    justify-content: center;
+    margin-top: 4px;
+  }
+  .btn-maximize:hover {
+    background: linear-gradient(135deg, #0891B2, #2563EB);
+    transform: translateY(-1px);
+    box-shadow: 0 5px 16px rgba(6, 182, 212, 0.5);
+  }
+
+  .inspector-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    width: 100%;
+  }
+  .inspector-actions .row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .inspector-actions .btn {
+    padding: 6px 8px;
+    font-size: 11.5px;
+    justify-content: center;
+  }
+
+
+  /* BOTTOM TRAY: IMAGES & DISTRIBUTION */
+  .tray-container {
+    height: 135px;
+    background: var(--surface-1);
+    border-top: 1px solid var(--surface-border);
+    display: flex;
+    align-items: center;
+    padding: 10px 20px;
+    gap: 20px;
+    z-index: 10;
+    flex: none;
+  }
+  .tray-uploader {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 110px;
+    height: 115px;
+    border: 2px dashed var(--surface-border);
+    border-radius: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    text-align: center;
+    padding: 8px;
+    flex: none;
+    transition: all 0.15s;
+    background: var(--surface-2);
+  }
+  .tray-uploader:hover, .tray-uploader.drag-over {
+    border-color: var(--accent-purple-light);
+    color: #FFF;
+    background: rgba(124, 58, 237, 0.15);
+  }
+  .tray-uploader svg {
+    margin-bottom: 6px;
+    stroke: var(--accent-purple-light);
+  }
+  .tray-uploader span {
+    font-size: 11.5px;
+    font-weight: 600;
+  }
+  .tray-uploader small {
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  .tray-gallery {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    overflow-x: auto;
+    padding: 6px 4px;
+    height: 125px;
+  }
+  .tray-thumb {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    position: relative;
+    flex: none;
+    cursor: grab;
+    border: 3px solid var(--surface-border);
+    background: var(--surface-2);
+    overflow: hidden;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    transition: transform 0.15s, border-color 0.15s;
+  }
+  .tray-thumb:hover {
+    transform: scale(1.06);
+    border-color: var(--accent-purple-light);
+  }
+  .tray-thumb.active {
+    border-color: var(--accent-pink);
+    box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.35);
+  }
+  .tray-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+  }
+  .tray-thumb .usage-count {
+    position: absolute;
+    bottom: 2px;
+    right: 6px;
+    background: rgba(15, 14, 23, 0.85);
+    color: var(--accent-cyan);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 10px;
+    border: 1px solid rgba(6, 182, 212, 0.4);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .tray-thumb .btn-delete-img {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: var(--accent-pink);
+    color: #FFF;
+    border: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    font-size: 12px;
+    line-height: 20px;
+    text-align: center;
+    cursor: pointer;
+    display: none;
+  }
+  .tray-thumb:hover .btn-delete-img {
+    display: block;
+  }
+
+  .tray-quick-ops {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: none;
+    width: 220px;
+    border-left: 1px solid var(--surface-border);
+    padding-left: 16px;
+  }
+
+  /* MODAL / TOAST */
+  .toast {
+    position: fixed;
+    bottom: 115px;
+    left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    background: rgba(26, 24, 40, 0.95);
+    border: 1px solid var(--accent-purple);
+    color: #FFF;
+    padding: 8px 18px;
+    border-radius: 20px;
+    font-size: 12.5px;
+    font-weight: 500;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    opacity: 0;
+    transition: all 0.2s;
+    pointer-events: none;
+    z-index: 100;
+    backdrop-filter: blur(8px);
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* PRINT STYLES */
+  #printArea {
+    display: none;
+  }
+  @media print {
+    @page {
+      margin: 0;
+      size: auto;
+    }
+    body > *:not(#printArea) {
+      display: none !important;
+    }
+    body, html {
+      background: #FFF !important;
+      overflow: visible !important;
+      height: auto !important;
+      max-height: none !important;
+    }
+    #printArea {
+      display: block !important;
+      position: static !important;
+      width: 100% !important;
+      background: #FFF !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    .print-sheet-wrapper {
+      page-break-after: always;
+      page-break-inside: avoid;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    .print-sheet-wrapper img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+  }
+
+  /* MEDIA QUERIES RESPONSIVAS DE ALTURA (Laptops, pantallas 768p / ventanas bajas / notebooks) */
+  @media (max-height: 760px) {
+    header {
+      padding: 4px 16px;
+    }
+    .brand-icon {
+      width: 28px;
+      height: 28px;
+      font-size: 14px;
+    }
+    .brand h1 {
+      font-size: 14px;
+    }
+    .brand-sub {
+      display: none;
+    }
+    .tray-container {
+      height: 86px !important;
+      padding: 4px 12px !important;
+      gap: 10px !important;
+    }
+    .tray-uploader {
+      width: 74px !important;
+      height: 76px !important;
+      font-size: 9px !important;
+    }
+    .tray-uploader svg {
+      width: 16px !important;
+      height: 16px !important;
+    }
+    .tray-thumb {
+      width: 66px !important;
+      height: 66px !important;
+    }
+    .badge-preview-circle {
+      width: 148px !important;
+      height: 148px !important;
+      margin: 3px 0 !important;
+    }
+    .badge-preview-box {
+      padding: 6px 10px !important;
+    }
+    .badge-cell-tag {
+      font-size: 10px !important;
+      padding: 2px 6px !important;
+    }
+    .anatomy-legend {
+      margin-top: 4px !important;
+      gap: 4px !important;
+    }
+    .anatomy-row {
+      padding: 3px 2px !important;
+      border-top-width: 2px !important;
+    }
+    .anatomy-tag {
+      font-size: 9.5px !important;
+    }
+    .anatomy-row .mono {
+      font-size: 10.5px !important;
+    }
+    .inspector-panel {
+      padding: 8px 12px !important;
+      gap: 5px !important;
+    }
+    .inspector-panel .panel-title {
+      margin-bottom: 2px !important;
+      font-size: 11.5px !important;
+    }
+    .inspector-panel .form-group {
+      margin-bottom: 2px !important;
+      gap: 1px !important;
+    }
+    .inspector-panel .form-label {
+      font-size: 10.5px !important;
+    }
+    .inspector-panel input[type=range] {
+      height: 14px !important;
+      margin: 0 !important;
+    }
+    .inspector-actions {
+      gap: 3px !important;
+    }
+    .inspector-actions .btn {
+      padding: 5px 6px !important;
+      font-size: 11px !important;
+    }
+  }
+
+  @media (max-height: 600px) {
+    .badge-preview-circle {
+      width: 136px !important;
+      height: 136px !important;
+    }
+    .tray-container {
+      height: 78px !important;
+    }
+    .tray-thumb {
+      width: 58px !important;
+      height: 58px !important;
+    }
+  }
+
+  @media (min-height: 900px) {
+    .badge-preview-circle {
+      width: 175px;
+      height: 175px;
+    }
+    .inspector-panel {
+      padding: 16px 18px;
+      gap: 12px;
+    }
+  }
+
+  /* MODAL LUPA / ZOOM AMPLIADO DE LA CHAPA */
+  .inspector-zoom-modal {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .inspector-zoom-backdrop {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(10, 9, 16, 0.82);
+    backdrop-filter: blur(6px);
+  }
+  .inspector-zoom-content {
+    position: relative;
+    background: #181628;
+    border: 1px solid var(--accent-purple);
+    border-radius: 14px;
+    box-shadow: 0 16px 45px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(139, 92, 246, 0.3);
+    padding: 18px 22px;
+    max-width: 92vw;
+    width: 660px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    z-index: 2;
+  }
+  .zoom-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--surface-border);
+    padding-bottom: 10px;
+  }
+  .zoom-modal-body {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 20px;
+    align-items: center;
+  }
+  .zoom-modal-circle {
+    width: 310px;
+    height: 310px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 3px solid var(--accent-purple);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.7);
+    background: #141320;
+    cursor: grab;
+  }
+  .zoom-modal-circle.panning-img {
+    cursor: grabbing !important;
+  }
+  #zoomModalCanvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="brand">
+    <div class="brand-icon">🔘</div>
+    <div>
+      <h1>Generador de Chapas Pro</h1>
+      <div class="brand-sub">Multi-hoja, arrastre directo y centrado individualizado</div>
+    </div>
+  </div>
+
+  <div class="header-actions">
+    <div class="save-indicator" id="saveIndicator" title="Todos tus cambios se respaldan en el navegador continuamente">
+      <span id="saveIcon">✓</span> <span id="saveText">Guardado</span>
+    </div>
+
+    <div class="badge-stat">
+      <span>Chapa:</span>
+      <span class="val" id="statBadgeSize">58 mm</span>
+    </div>
+    <div class="badge-stat">
+      <span>Hoja:</span>
+      <span class="val" id="statPaperName">A4</span>
+    </div>
+    <div class="badge-stat">
+      <span>Capacidad:</span>
+      <span class="val" id="statCapacity">12 / hoja</span>
+    </div>
+
+    <div class="project-name-box" title="Escribe el nombre de tu pedido o trabajo (aparecerá en los archivos PNG descargados)">
+      <span class="project-label">📁 Pedido:</span>
+      <input type="text" id="txtProjectName" value="Mis Chapas" class="project-name-input" placeholder="Nombre trabajo">
+    </div>
+
+    <button class="btn btn-pwa-install btn-sm" id="btnPwaInstall" style="display: none;" title="Instalar en tu PC para usar sin internet y desde el escritorio">
+      📲 Instalar App
+    </button>
+    <button class="btn btn-secondary btn-sm" id="btnResetProject" title="Iniciar un nuevo proyecto limpio (vaciar todo)">
+      🔄 Nuevo
+    </button>
+    <button class="btn btn-secondary btn-sm" id="btnDirectPrint" title="Imprimir a tamaño 100% real en milímetros sin distorsión de zoom">
+      🖨️ Imprimir
+    </button>
+    <button class="btn btn-outline-cyan btn-sm" id="btnExportAll" title="Descargar todas las páginas en alta resolución">
+      📑 Descargar Todas
+    </button>
+    <button class="btn btn-outline-cyan btn-sm" id="btnExportImagesZip" title="Descargar cada chapa como imagen PNG individual (recortada en círculo) dentro de un archivo ZIP, sin montar la hoja">
+      🖼️ ZIP Imágenes
+    </button>
+    <button class="btn btn-primary" id="btnExportCurrent" title="Descargar la hoja visible en PNG listo para imprenta">
+      💾 Descargar Hoja PNG
+    </button>
+  </div>
+</header>
+
+<!-- MAIN WORKSPACE -->
+<div class="workspace">
+  <!-- CONFIG PANEL (LEFT) -->
+  <aside class="config-panel">
+    <div class="panel-section">
+      <div class="panel-title">⚙️ 1. Medidas de la Máquina</div>
+      
+      <div class="form-group">
+        <label class="form-label">Tamaño de la chapa</label>
+        <select id="selBadgeSize">
+          <option value="25">25 mm (1") — Corte troquel 35 mm</option>
+          <option value="32">32 mm (1¼") — Corte troquel 44 mm</option>
+          <option value="38">38 mm (1½") — Corte troquel 51 mm</option>
+          <option value="44">44 mm (1¾") — Corte troquel 54 mm</option>
+          <option value="58" selected>58 mm (2¼" Estándar) — Corte troquel 70 mm</option>
+          <option value="75">75 mm (3") — Corte troquel 86 mm</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">
+          <span>Diámetro de corte total</span>
+          <span class="val" id="lblTotalCutMM" style="font-size: 14px; font-weight: 700; color: #F87171;">70 mm</span>
+        </label>
+        <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 5px;">
+          Ajuste fino: <span id="lblFineCut" style="color: var(--accent-purple-light); font-weight: 600;">0 mm</span>
+        </div>
+        <input type="range" id="rngFineCut" min="-3" max="3" step="0.5" value="0" title="Ajusta milimétricamente el diámetro de corte">
+        
+        <div class="btn-group-toggle" id="groupCutPresets" style="margin-top: 8px;">
+          <button type="button" class="btn-toggle active" id="btnCut70" data-cut="0" title="Estándar internacional (70 mm) para papel normal de 80g a 120g">70 mm (Estándar)</button>
+          <button type="button" class="btn-toggle" id="btnCut68" data-cut="-2" title="Medida compacta (68 mm) ideal para papel fotográfico o matriz justa">68 mm (Ajustado)</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Resolución de exportación</label>
+        <select id="selDpi">
+          <option value="300" selected>300 DPI — Calidad de imprenta (Recomendado)</option>
+          <option value="600">600 DPI — Ultra definición (Archivos pesados)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-title">📄 2. Formato de Papel</div>
+      
+      <div class="form-group">
+        <label class="form-label">Tamaño de hoja</label>
+        <select id="selPaper">
+          <option value="a4" selected>A4 — 210 × 297 mm</option>
+          <option value="carta">Carta / Letter — 216 × 279 mm</option>
+          <option value="oficio">Oficio — 216 × 340 mm</option>
+          <option value="a3">A3 — 297 × 420 mm</option>
+          <option value="a5">A5 — 148 × 210 mm</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Orientación</label>
+        <div class="btn-group-toggle" id="groupOrientation">
+          <button type="button" class="btn-toggle active" data-orient="portrait">↕ Vertical</button>
+          <button type="button" class="btn-toggle" data-orient="landscape">↔ Horizontal</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Disposición en la hoja</label>
+        <div class="btn-group-toggle" id="groupLayoutMode">
+          <button type="button" class="btn-toggle active" data-layout="grid">▦ Cuadrícula</button>
+          <button type="button" class="btn-toggle" data-layout="staggered" title="Acomoda las filas en tresbolillo / panal para meter más chapas">⬡ Tresbolillo (Máx)</button>
+        </div>
+      </div>
+
+      <div class="row-2">
+        <div class="form-group">
+          <label class="form-label">Margen <span class="val" id="lblMargin">10mm</span></label>
+          <input type="range" id="rngMargin" min="2" max="25" value="10">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Espacio <span class="val" id="lblGap">4mm</span></label>
+          <input type="range" id="rngGap" min="0" max="15" value="4">
+        </div>
+      </div>
+
+      <button class="btn btn-maximize btn-sm" id="btnMaximizeCapacity" title="Calcula la orientación y acomodo óptimo para meter la mayor cantidad de chapas posibles">
+        ⚡ Maximizar Capacidad de Hoja
+      </button>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-title">📐 3. Guías y Borde</div>
+      
+      <div class="form-group">
+        <label class="form-label" title="Deja un aro blanco perimetral alrededor de la imagen para que no quede pegada al borde">
+          <span>Borde blanco (aro perimetral)</span>
+          <span class="val" id="lblDefaultBorder">0%</span>
+        </label>
+        <input type="range" id="rngDefaultBorder" min="0" max="35" value="0" title="Desliza para encoger la imagen y dejar un marco blanco alrededor">
+        <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">
+          Crea un marco blanco alrededor de tus imágenes para que no se corten en el borde.
+        </div>
+      </div>
+
+      <div class="form-group" style="gap: 10px;">
+        <label class="toggle-check">
+          <input type="checkbox" id="chkShowGuides" checked>
+          <span>Mostrar guías en pantalla (corte / sangría)</span>
+        </label>
+        <label class="toggle-check">
+          <input type="checkbox" id="chkCropMarks" checked>
+          <span>Imprimir línea de corte punteada en el papel</span>
+        </label>
+      </div>
+
+      <div class="guide-legend">
+        <div class="legend-item">
+          <span class="legend-dot" style="background: var(--guide-cut);"></span>
+          <span><b>Línea roja / exterior:</b> Donde cortas con tijera/troquel.</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot" style="background: var(--guide-bleed);"></span>
+          <span><b>Zona cian / intermedia:</b> Se dobla y queda en el reverso.</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot" style="background: var(--guide-safe);"></span>
+          <span><b>Línea ámbar / frontal:</b> Lo que se verá de frente en el pecho.</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- CANVAS WORKSPACE (CENTER) -->
+  <main class="canvas-workspace">
+    <!-- SHEET TABS -->
+    <div class="sheet-tabs-bar">
+      <div style="display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0;">
+        <button class="btn btn-secondary btn-sm" id="btnToggleConfig" title="Mostrar/ocultar panel de medidas y papel (izquierda)" style="flex:none; padding: 5px 9px;">
+          ⚙️
+        </button>
+        <div class="tabs-list" id="tabsList">
+          <!-- Generados dinámicamente -->
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; flex: none;">
+        <button class="add-sheet-btn" id="btnAddSheet" title="Agregar una nueva hoja en blanco">+ Nueva Hoja</button>
+        <button class="add-sheet-btn" id="btnDuplicateSheet" title="Duplicar la hoja actual con todas sus imágenes">📋 Duplicar Hoja</button>
+        
+        <!-- SELECTOR VISIBLE DE MODO 3D / GUÍAS -->
+        <div class="btn-group-toggle" id="groupGlobalViewMode" style="width: auto;">
+          <button type="button" class="btn-toggle active" data-mode="guides" title="Ver líneas técnicas de corte y sangría para imprenta">📐 Guías Técnicas</button>
+          <button type="button" class="btn-toggle" data-mode="real3d" title="Simular las chapas terminadas en 3D con brillo y relieve">🔘 Botón Real 3D</button>
+        </div>
+
+        <div class="canvas-tools-bar">
+          <div class="zoom-tool">
+            <button class="zoom-btn" id="btnZoomOut" title="Reducir">–</button>
+            <span class="zoom-val" id="lblViewZoom">100%</span>
+            <button class="zoom-btn" id="btnZoomIn" title="Aumentar">+</button>
+          </div>
+          <button class="btn btn-secondary btn-sm" id="btnFitSheet" title="Ajustar hoja a la pantalla">Fit</button>
+        </div>
+
+        <button class="btn btn-secondary btn-sm" id="btnToggleInspector" title="Mostrar/ocultar panel de ajustes de chapa (derecha)" style="flex:none; padding: 5px 9px;">
+          🎯
+        </button>
+      </div>
+    </div>
+
+    <!-- VIEWPORT WITH SHEET CANVAS (LIMPIO SIN CARTELES QUE TAPEN) -->
+    <div class="canvas-viewport" id="canvasViewport">
+      <div class="sheet-paper" id="sheetPaper">
+        <canvas id="sheetCanvas"></canvas>
+      </div>
+    </div>
+  </main>
+
+  <!-- INSPECTOR PANEL (RIGHT) -->
+  <aside class="inspector-panel" id="inspectorPanel">
+    <div class="panel-title">🎯 Ajustes de la Chapa Seleccionada</div>
+
+    <div class="btn-group-toggle" id="groupPreviewMode" style="margin-bottom: 8px;">
+      <button type="button" class="btn-toggle active" data-mode="guides" title="Ver las líneas técnicas de corte y doblez">📐 Guías Técnicas</button>
+      <button type="button" class="btn-toggle" data-mode="real3d" title="Simular la chapa armada terminada en 3D">🔘 Botón Real 3D</button>
+    </div>
+
+    <div class="badge-preview-box">
+      <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+        <div class="badge-cell-tag" id="inspectorCellTag">Fila 1 · Col 1</div>
+        <button type="button" class="btn btn-secondary btn-sm" id="btnOpenZoomModal" title="Abrir lupa / vista gigante (320px) para revisar al milímetro" style="padding: 2px 8px; font-size: 11px; gap: 4px; border-radius: 6px;">
+          🔍 Lupa
+        </button>
+      </div>
+      <div class="badge-preview-circle" id="badgePreviewCircleWrap" title="Haz clic para ampliar con la lupa o arrastra para centrar">
+        <canvas id="badgeInspectorCanvas" width="380" height="380"></canvas>
+      </div>
+      <div style="font-size: 11px; color: var(--text-secondary); margin-top: 3px; font-weight: 500;" id="inspectorImgName">
+        Imagen asignada
+      </div>
+
+      <!-- LEYENDA ANATÓMICA COMPACTA E INTERACTIVA (3 CHIPS) -->
+      <div class="anatomy-legend" id="anatomyLegend">
+        <div class="anatomy-row chip-guide" data-guide="cut" style="border-top: 2.5px solid #EF4444; cursor: pointer;" title="Línea Roja de Corte (Troquel): Clic para resaltar">
+          <div class="anatomy-tag">
+            <span style="color:#EF4444; font-size: 11px;">✂️</span>
+            <span>Corte</span>
+          </div>
+          <span class="mono" id="valCutMM" style="color:#F87171; font-weight:700;">70 mm</span>
+        </div>
+        <div class="anatomy-row chip-guide" data-guide="bleed" style="border-top: 2.5px solid #06B6D4; cursor: pointer;" title="Línea Cian de Doblez (Sangría): Clic para resaltar">
+          <div class="anatomy-tag">
+            <span style="color:#06B6D4; font-size: 11px;">🔄</span>
+            <span>Doblez</span>
+          </div>
+          <span class="mono" id="valBleedMM" style="color:#67E8F9; font-weight:700;">63 mm</span>
+        </div>
+        <div class="anatomy-row chip-guide" data-guide="front" style="border-top: 2.5px solid #F59E0B; cursor: pointer;" title="Línea Ámbar de Frente Visible: Clic para resaltar">
+          <div class="anatomy-tag">
+            <span style="color:#F59E0B; font-size: 11px;">👁️</span>
+            <span>Frente</span>
+          </div>
+          <span class="mono" id="valSafeMM" style="color:#FCD34D; font-weight:700;">58 mm</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="row-2" style="gap: 8px;">
+      <div class="form-group" style="margin-bottom: 2px;">
+        <label class="form-label" style="font-size: 11px;">Zoom <span class="val" id="lblCellZoom">100%</span></label>
+        <input type="range" id="rngCellZoom" min="80" max="350" value="100">
+      </div>
+      <div class="form-group" style="margin-bottom: 2px;">
+        <label class="form-label" style="font-size: 11px;">Borde <span class="val" id="lblCellBorder">0%</span></label>
+        <input type="range" id="rngCellBorder" min="0" max="35" value="0">
+      </div>
+    </div>
+
+    <div class="inspector-actions">
+      <div class="row-2">
+        <button class="btn btn-secondary btn-sm" id="btnCellCenter" title="Volver a colocar la imagen en el centro exacto">
+          🎯 Centrar
+        </button>
+        <button class="btn btn-secondary btn-sm" id="btnCellRotate" title="Girar 90 grados">
+          🔄 Rotar 90°
+        </button>
+      </div>
+      <div class="row-2">
+        <button class="btn btn-secondary btn-sm" id="btnCellCover" title="Ajustar imagen para cubrir todo el círculo">
+          🔳 Llenar
+        </button>
+        <button class="btn btn-secondary btn-sm" id="btnCellContain" title="Ajustar imagen completa dentro del círculo">
+          🔲 Encajar
+        </button>
+      </div>
+      <button class="btn btn-secondary btn-sm" id="btnApplyAllSheet" title="Copiar esta misma imagen y encuadre a todas las casillas de la hoja">
+        📋 Replicar a toda esta hoja
+      </button>
+      <button class="btn btn-secondary btn-sm" id="btnClearCell" style="color: var(--accent-pink);" title="Vaciar esta chapa">
+        🗑️ Vaciar esta chapa
+      </button>
+    </div>
+  </aside>
+</div>
+
+<!-- BOTTOM TRAY: GALLERY & DISTRIBUTION -->
+<div class="tray-container">
+  <div class="tray-uploader" id="trayDropZone" title="Haz clic o arrastra fotos aquí (soporta selección múltiple)">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+      <polyline points="17 8 12 3 7 8"></polyline>
+      <line x1="12" y1="3" x2="12" y2="15"></line>
+    </svg>
+    <span>Subir Fotos</span>
+    <small>1 o muchas (lote)</small>
+  </div>
+  <input type="file" id="batchFileInput" accept="image/*" multiple style="display:none;">
+
+  <div class="tray-gallery" id="trayGallery">
+    <!-- Miniaturas de imágenes -->
+  </div>
+
+  <div class="tray-quick-ops">
+    <button class="btn btn-secondary btn-sm" id="btnDistributeSheet" title="Rellena las chapas vacías de esta hoja con las fotos subidas">
+      ⚡ Repartir en esta hoja
+    </button>
+    <button class="btn btn-outline-cyan btn-sm" id="btnAutoPages" title="Crea tantas hojas como hagan falta para colocar todas las fotos">
+      🚀 Distribuir en hojas auto
+    </button>
+    <button class="btn btn-secondary btn-sm" id="btnClearSheet" style="font-size: 11px;">
+      🧹 Vaciar hoja actual
+    </button>
+  </div>
+</div>
+
+<div id="printArea"></div>
+
+<div class="toast" id="toastMsg">Mensaje</div>
+
+<!-- MODAL LUPA / ZOOM AMPLIADO DE LA CHAPA -->
+<div id="inspectorZoomModal" class="inspector-zoom-modal" style="display:none;">
+  <div class="inspector-zoom-backdrop" id="closeZoomModalBackdrop"></div>
+  <div class="inspector-zoom-content">
+    <div class="zoom-modal-header">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:18px;">🔍</span>
+        <span style="font-weight:700; font-size:14px;">Inspección Milimétrica de Chapa</span>
+        <span class="mono" id="modalCellTag" style="font-size:11px; background:var(--surface-3); padding:2px 6px; border-radius:4px; color:var(--accent-purple-light);">Fila 1 · Col 1</span>
+      </div>
+      <button class="btn btn-secondary btn-sm" id="btnCloseZoomModal" style="padding:4px 10px;">✕ Cerrar</button>
+    </div>
+    
+    <div class="zoom-modal-body">
+      <div class="zoom-modal-circle" id="zoomModalCircleWrap" title="Arrastra directamente para centrar con máxima precisión">
+        <canvas id="zoomModalCanvas" width="450" height="450"></canvas>
+      </div>
+      
+      <div class="zoom-modal-info">
+        <div class="anatomy-legend" style="grid-template-columns: 1fr; gap: 8px; width: 100%;">
+          <div class="anatomy-row chip-guide" data-guide="cut" style="border-left: 3.5px solid #EF4444; border-top: none; flex-direction: row; justify-content: space-between; padding: 9px 12px; cursor: pointer;">
+            <div class="anatomy-tag" style="font-size: 12px; gap: 8px;">
+              <span style="color:#EF4444; font-size: 14px;">✂️</span>
+              <span>Línea de Corte (Troquel)</span>
+            </div>
+            <span class="mono" id="valModalCut" style="color:#F87171; font-weight:700; font-size: 13px;">70 mm</span>
+          </div>
+          <div class="anatomy-row chip-guide" data-guide="bleed" style="border-left: 3.5px solid #06B6D4; border-top: none; flex-direction: row; justify-content: space-between; padding: 9px 12px; cursor: pointer;">
+            <div class="anatomy-tag" style="font-size: 12px; gap: 8px;">
+              <span style="color:#06B6D4; font-size: 14px;">🔄</span>
+              <span>Zona de Doblez (Sangría)</span>
+            </div>
+            <span class="mono" id="valModalBleed" style="color:#67E8F9; font-weight:700; font-size: 13px;">63 mm</span>
+          </div>
+          <div class="anatomy-row chip-guide" data-guide="front" style="border-left: 3.5px solid #F59E0B; border-top: none; flex-direction: row; justify-content: space-between; padding: 9px 12px; cursor: pointer;">
+            <div class="anatomy-tag" style="font-size: 12px; gap: 8px;">
+              <span style="color:#F59E0B; font-size: 14px;">👁️</span>
+              <span>Frente Visible (Chapa)</span>
+            </div>
+            <span class="mono" id="valModalSafe" style="color:#FCD34D; font-weight:700; font-size: 13px;">58 mm</span>
+          </div>
+        </div>
+        <p style="font-size: 12px; color: var(--text-secondary); margin-top: 12px; line-height: 1.45;">
+          💡 <b>Arrastre directo:</b> Haz clic y mueve el mouse dentro del círculo gigante para encuadrar la imagen exactamente como desees.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCRIPT LOGIC -->
+<script>
+(() => {
+  // --- PRESETS Y MEDIDAS EXACTAS DE MATRICES / SACABOCADOS ---
+  const BADGE_PRESETS = {
+    25: { name: '25 mm (1")', sizeMM: 25, cutMM: 35, bleedMM: 28, safeMM: 23 },
+    32: { name: '32 mm (1¼")', sizeMM: 32, cutMM: 44, bleedMM: 36, safeMM: 30 },
+    38: { name: '38 mm (1½")', sizeMM: 38, cutMM: 51, bleedMM: 42, safeMM: 36 },
+    44: { name: '44 mm (1¾")', sizeMM: 44, cutMM: 54, bleedMM: 48, safeMM: 41 },
+    58: { name: '58 mm (2¼")', sizeMM: 58, cutMM: 70, bleedMM: 63, safeMM: 54 },
+    75: { name: '75 mm (3")', sizeMM: 75, cutMM: 86, bleedMM: 80, safeMM: 71 }
+  };
+
+  const PAPER_MM = {
+    a4: [210, 297],
+    carta: [215.9, 279.4],
+    oficio: [216, 340],
+    a3: [297, 420],
+    a5: [148, 210]
+  };
+
+  // --- ELEMENT REFS ---
+  const selBadgeSize = document.getElementById('selBadgeSize');
+  const rngFineCut = document.getElementById('rngFineCut');
+  const lblFineCut = document.getElementById('lblFineCut');
+  const lblTotalCutMM = document.getElementById('lblTotalCutMM');
+  const groupCutPresets = document.getElementById('groupCutPresets');
+  const selDpi = document.getElementById('selDpi');
+  const selPaper = document.getElementById('selPaper');
+  const groupOrientation = document.getElementById('groupOrientation');
+  const groupLayoutMode = document.getElementById('groupLayoutMode');
+  const btnMaximizeCapacity = document.getElementById('btnMaximizeCapacity');
+  const rngMargin = document.getElementById('rngMargin');
+  const rngGap = document.getElementById('rngGap');
+  const lblMargin = document.getElementById('lblMargin');
+  const lblGap = document.getElementById('lblGap');
+  const rngDefaultBorder = document.getElementById('rngDefaultBorder');
+  const lblDefaultBorder = document.getElementById('lblDefaultBorder');
+  const chkShowGuides = document.getElementById('chkShowGuides');
+  const chkCropMarks = document.getElementById('chkCropMarks');
+
+  const statBadgeSize = document.getElementById('statBadgeSize');
+  const statPaperName = document.getElementById('statPaperName');
+  const statCapacity = document.getElementById('statCapacity');
+  const saveIndicator = document.getElementById('saveIndicator');
+  const saveIcon = document.getElementById('saveIcon');
+  const saveText = document.getElementById('saveText');
+
+  const tabsList = document.getElementById('tabsList');
+  const btnAddSheet = document.getElementById('btnAddSheet');
+  const btnDuplicateSheet = document.getElementById('btnDuplicateSheet');
+  const canvasViewport = document.getElementById('canvasViewport');
+  const sheetPaper = document.getElementById('sheetPaper');
+  const sheetCanvas = document.getElementById('sheetCanvas');
+  const sheetCtx = sheetCanvas.getContext('2d');
+
+  const btnZoomIn = document.getElementById('btnZoomIn');
+  const btnZoomOut = document.getElementById('btnZoomOut');
+  const btnFitSheet = document.getElementById('btnFitSheet');
+  const lblViewZoom = document.getElementById('lblViewZoom');
+  const btnToggleConfig = document.getElementById('btnToggleConfig');
+  const btnToggleInspector = document.getElementById('btnToggleInspector');
+  const workspaceEl = document.querySelector('.workspace');
+  const configPanelEl = document.querySelector('.config-panel');
+  const inspectorPanelEl = document.querySelector('.inspector-panel');
+
+  // View Modes (Hoja e Inspector)
+  const groupGlobalViewMode = document.getElementById('groupGlobalViewMode');
+  const groupPreviewMode = document.getElementById('groupPreviewMode');
+  const badgeInspectorCanvas = document.getElementById('badgeInspectorCanvas');
+  const inspectorCtx = badgeInspectorCanvas.getContext('2d');
+  const inspectorCellTag = document.getElementById('inspectorCellTag');
+  const inspectorImgName = document.getElementById('inspectorImgName');
+  const valCutMM = document.getElementById('valCutMM');
+  const valBleedMM = document.getElementById('valBleedMM');
+  const valSafeMM = document.getElementById('valSafeMM');
+  const rngCellZoom = document.getElementById('rngCellZoom');
+  const lblCellZoom = document.getElementById('lblCellZoom');
+  const rngCellBorder = document.getElementById('rngCellBorder');
+  const lblCellBorder = document.getElementById('lblCellBorder');
+  const btnCellCenter = document.getElementById('btnCellCenter');
+  const btnCellRotate = document.getElementById('btnCellRotate');
+  const btnCellCover = document.getElementById('btnCellCover');
+  const btnCellContain = document.getElementById('btnCellContain');
+  const btnApplyAllSheet = document.getElementById('btnApplyAllSheet');
+  const btnClearCell = document.getElementById('btnClearCell');
+
+  // Tray
+  const trayDropZone = document.getElementById('trayDropZone');
+  const batchFileInput = document.getElementById('batchFileInput');
+  const trayGallery = document.getElementById('trayGallery');
+  const btnDistributeSheet = document.getElementById('btnDistributeSheet');
+  const btnAutoPages = document.getElementById('btnAutoPages');
+  const btnClearSheet = document.getElementById('btnClearSheet');
+
+  // Exports & Prints
+  const txtProjectName = document.getElementById('txtProjectName');
+  const btnPwaInstall = document.getElementById('btnPwaInstall');
+  const btnResetProject = document.getElementById('btnResetProject');
+  const btnExportCurrent = document.getElementById('btnExportCurrent');
+  const btnExportAll = document.getElementById('btnExportAll');
+  const btnExportImagesZip = document.getElementById('btnExportImagesZip');
+  const btnDirectPrint = document.getElementById('btnDirectPrint');
+  const printArea = document.getElementById('printArea');
+  const toastMsg = document.getElementById('toastMsg');
+
+  // --- ESTADO GLOBAL ---
+  let library = []; // { id, name, imgElement, src }
+  let libCounter = 1;
+  let activeImageId = null;
+
+  let pages = [
+    {
+      id: 1,
+      name: 'Hoja 1',
+      cells: {} // key "r_c" -> { imgId, offX, offY, zoom, border, rotation }
+    }
+  ];
+  let pageCounter = 1;
+  let activePageIndex = 0;
+  let selectedCellKey = '0_0';
+  let paperOrientation = 'portrait'; // 'portrait' | 'landscape'
+  let layoutMode = 'grid'; // 'grid' | 'staggered' (tresbolillo)
+  let inspectorPreviewMode = 'guides'; // 'guides' | 'real3d'
+  let viewZoom = 1.0;
+
+  // Arrastre interactivo en lienzo y en inspector
+  let isPanningBadge = false;
+  let panStartPoint = { x: 0, y: 0 };
+  let initialCellOffset = { offX: 0, offY: 0 };
+  let panningCellKey = null;
+
+  let isPanningInspector = false;
+  let inspectorPanStart = { x: 0, y: 0 };
+  let initialInspectorOffset = { offX: 0, offY: 0 };
+
+  function showToast(msg) {
+    toastMsg.textContent = msg;
+    toastMsg.classList.add('show');
+    setTimeout(() => toastMsg.classList.remove('show'), 3000);
+  }
+
+  // --- MEDIDAS Y SPECS ---
+  function getBadgeSpecs(sizeMM, dpi) {
+    const preset = BADGE_PRESETS[sizeMM] || {
+      name: `${sizeMM} mm`,
+      sizeMM,
+      cutMM: sizeMM + 12,
+      bleedMM: sizeMM + 5,
+      safeMM: Math.max(sizeMM - 2, sizeMM * 0.86)
+    };
+
+    const fineTune = parseFloat(rngFineCut ? rngFineCut.value : 0) || 0;
+    const cutMM = Math.max(preset.sizeMM + 2, preset.cutMM + fineTune);
+    const bleedMM = preset.bleedMM + fineTune * 0.5;
+    const safeMM = preset.safeMM;
+    const mmToPx = (mm) => Math.round((mm / 25.4) * dpi);
+
+    return {
+      sizeMM: preset.sizeMM,
+      cutMM,
+      bleedMM,
+      safeMM,
+      cutPx: mmToPx(cutMM),
+      bleedPx: mmToPx(bleedMM),
+      safePx: mmToPx(safeMM)
+    };
+  }
+
+  // --- CÁLCULO DE RETÍCULA (CUADRÍCULA Y TREMBOLILLO / HONEYCOMB) ---
+  function computeSheetGrid(overrideConfig = null) {
+    const paperType = (overrideConfig && overrideConfig.paper) || selPaper.value;
+    let [pw, ph] = PAPER_MM[paperType] || PAPER_MM.a4;
+    const orient = (overrideConfig && overrideConfig.orientation) || paperOrientation;
+    if (orient === 'landscape') {
+      const temp = pw; pw = ph; ph = temp;
+    }
+
+    const sizeMM = parseFloat((overrideConfig && overrideConfig.sizeMM) || selBadgeSize.value);
+    const specs = getBadgeSpecs(sizeMM, 300);
+    const margin = parseFloat((overrideConfig && overrideConfig.margin !== undefined) ? overrideConfig.margin : rngMargin.value);
+    const gap = parseFloat((overrideConfig && overrideConfig.gap !== undefined) ? overrideConfig.gap : rngGap.value);
+    const mode = (overrideConfig && overrideConfig.layoutMode) || layoutMode;
+
+    const diameter = specs.cutMM;
+    const usableW = pw - margin * 2;
+    const usableH = ph - margin * 2;
+    const badges = [];
+
+    if (usableW >= diameter && usableH >= diameter) {
+      if (mode === 'staggered') {
+        // Empaquetado hexagonal al tresbolillo (Máxima densidad geométrica)
+        const stepX = diameter + gap;
+        const stepY = (diameter + gap) * (Math.sqrt(3) / 2); // ~0.866
+        const maxRows = Math.max(1, Math.floor((usableH - diameter) / stepY) + 1);
+
+        for (let r = 0; r < maxRows; r++) {
+          const isShifted = (r % 2 === 1);
+          const rowY = margin + diameter / 2 + r * stepY;
+          if (rowY + diameter / 2 > ph - margin + 0.01) break;
+
+          const shiftOffset = isShifted ? (stepX / 2) : 0;
+          const availableW = usableW - shiftOffset;
+          const colsInRow = Math.max(0, Math.floor((availableW - diameter + gap + 0.01) / stepX) + 1);
+
+          for (let c = 0; c < colsInRow; c++) {
+            const rowX = margin + diameter / 2 + shiftOffset + c * stepX;
+            if (rowX + diameter / 2 <= pw - margin + 0.01) {
+              badges.push({
+                cellKey: `${r}_${c}`,
+                r, c,
+                xMM: rowX,
+                yMM: rowY
+              });
+            }
+          }
+        }
+      } else {
+        // Cuadrícula Recta Estándar (Filas y columnas alineadas)
+        const step = diameter + gap;
+        const cols = Math.max(0, Math.floor((usableW + gap) / step));
+        const rows = Math.max(0, Math.floor((usableH + gap) / step));
+
+        const totalGridW = cols * diameter + (cols - 1) * gap;
+        const totalGridH = rows * diameter + (rows - 1) * gap;
+        const startX = margin + ((usableW - totalGridW) / 2) + diameter / 2;
+        const startY = margin + ((usableH - totalGridH) / 2) + diameter / 2;
+
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            badges.push({
+              cellKey: `${r}_${c}`,
+              r, c,
+              xMM: startX + c * step,
+              yMM: startY + r * step
+            });
+          }
+        }
+      }
+    }
+
+    return {
+      pw, ph, margin, gap, badges, totalCapacity: badges.length, specs
+    };
+  }
+
+  function getActivePage() {
+    if (!pages[activePageIndex]) activePageIndex = 0;
+    return pages[activePageIndex];
+  }
+
+  function getImageById(id) {
+    return library.find(item => item.id === id);
+  }
+
+  function getOrCreateCellData(page, cellKey) {
+    if (!page.cells[cellKey]) {
+      const defaultBorder = parseFloat(rngDefaultBorder.value) / 100;
+      page.cells[cellKey] = {
+        imgId: null,
+        offX: 0,
+        offY: 0,
+        zoom: 1.0,
+        border: defaultBorder,
+        rotation: 0
+      };
+    }
+    return page.cells[cellKey];
+  }
+
+  // --- DIBUJO DE CHAPA INDIVIDUAL (ALTO CONTRASTE Y MODO 3D) ---
+  function renderSingleBadgeToContext(targetCtx, cx, cy, diameterPx, cellData, specs, options = {}) {
+    const {
+      isExport = false,
+      drawCropMark = true,
+      drawGuides = false,
+      isSelected = false,
+      isReal3D = false
+    } = options;
+
+    const radius = diameterPx / 2;
+    const borderPct = cellData ? cellData.border : (parseFloat(rngDefaultBorder.value) / 100);
+    const innerDiameter = diameterPx * Math.max(0.1, (1 - borderPct));
+    const innerRadius = innerDiameter / 2;
+
+    targetCtx.save();
+
+    // MODO SIMULACIÓN CHAPA REAL 3D (PRENSADA)
+    if (isReal3D) {
+      // Frente visible de la chapa terminado
+      const visibleRatio = specs.safeMM / specs.cutMM;
+      const frontRadius = radius * visibleRatio;
+      const frontImgRadius = frontRadius * Math.max(0.1, (1 - borderPct));
+
+      // Base circular metálica con sombra proyectada
+      targetCtx.save();
+      targetCtx.shadowColor = 'rgba(0,0,0,0.6)';
+      targetCtx.shadowBlur = 18;
+      targetCtx.shadowOffsetY = 8;
+      targetCtx.fillStyle = '#FFFFFF';
+      targetCtx.beginPath();
+      targetCtx.arc(cx, cy, frontRadius, 0, Math.PI * 2);
+      targetCtx.fill();
+      targetCtx.restore();
+
+      // Recorte de imagen dentro del frontal visible (respetando el borde blanco)
+      targetCtx.save();
+      targetCtx.beginPath();
+      targetCtx.arc(cx, cy, frontImgRadius, 0, Math.PI * 2);
+      targetCtx.clip();
+
+      const imgItem = cellData && cellData.imgId ? getImageById(cellData.imgId) : null;
+      if (imgItem && imgItem.imgElement) {
+        const image = imgItem.imgElement;
+        const baseScale = Math.max((frontImgRadius * 2) / image.width, (frontImgRadius * 2) / image.height);
+        const zoom = cellData.zoom || 1.0;
+        const scale = baseScale * zoom;
+        const drawW = image.width * scale;
+        const drawH = image.height * scale;
+
+        const offX = (cellData.offX || 0) * diameterPx;
+        const offY = (cellData.offY || 0) * diameterPx;
+
+        targetCtx.translate(cx + offX, cy + offY);
+        if (cellData.rotation) targetCtx.rotate((cellData.rotation * Math.PI) / 180);
+        targetCtx.drawImage(image, -drawW / 2, -drawH / 2, drawW, drawH);
+      } else {
+        targetCtx.fillStyle = '#E2E8F0';
+        targetCtx.fillRect(cx - frontRadius, cy - frontRadius, frontRadius * 2, frontRadius * 2);
+      }
+
+      // Brillo esférico de domo de plástico / Mylar
+      const glossGrad = targetCtx.createRadialGradient(
+        cx - frontRadius * 0.35, cy - frontRadius * 0.4, frontRadius * 0.05,
+        cx, cy, frontRadius
+      );
+      glossGrad.addColorStop(0, 'rgba(255, 255, 255, 0.55)');
+      glossGrad.addColorStop(0.3, 'rgba(255, 255, 255, 0.15)');
+      glossGrad.addColorStop(0.7, 'rgba(255, 255, 255, 0.0)');
+      glossGrad.addColorStop(1, 'rgba(0, 0, 0, 0.35)');
+
+      targetCtx.fillStyle = glossGrad;
+      targetCtx.beginPath();
+      targetCtx.arc(cx, cy, frontRadius, 0, Math.PI * 2);
+      targetCtx.fill();
+
+      // Bisel de relieve metálico del borde
+      targetCtx.lineWidth = 3;
+      targetCtx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      targetCtx.stroke();
+      targetCtx.restore();
+
+      targetCtx.restore();
+      return;
+    }
+
+    // --- MODO TÉCNICO Y DE HOJA ---
+
+    // Fondo blanco del papel recortado
+    targetCtx.fillStyle = '#FFFFFF';
+    targetCtx.beginPath();
+    targetCtx.arc(cx, cy, radius, 0, Math.PI * 2);
+    targetCtx.fill();
+
+    // Dibujo de la imagen
+    const imgItem = cellData && cellData.imgId ? getImageById(cellData.imgId) : null;
+    if (imgItem && imgItem.imgElement) {
+      targetCtx.save();
+      targetCtx.beginPath();
+      targetCtx.arc(cx, cy, innerRadius, 0, Math.PI * 2);
+      targetCtx.clip();
+
+      const image = imgItem.imgElement;
+      const baseScale = Math.max(innerDiameter / image.width, innerDiameter / image.height);
+      const zoom = cellData.zoom || 1.0;
+      const scale = baseScale * zoom;
+      const drawW = image.width * scale;
+      const drawH = image.height * scale;
+
+      const offX = (cellData.offX || 0) * diameterPx;
+      const offY = (cellData.offY || 0) * diameterPx;
+
+      targetCtx.translate(cx + offX, cy + offY);
+      if (cellData.rotation) targetCtx.rotate((cellData.rotation * Math.PI) / 180);
+      targetCtx.drawImage(image, -drawW / 2, -drawH / 2, drawW, drawH);
+      targetCtx.restore();
+    } else if (!isExport) {
+      // Indicador de casilla vacía
+      targetCtx.save();
+      targetCtx.strokeStyle = 'rgba(124, 58, 237, 0.35)';
+      targetCtx.lineWidth = 1.5;
+      targetCtx.setLineDash([4, 4]);
+      targetCtx.beginPath();
+      targetCtx.arc(cx, cy, radius * 0.85, 0, Math.PI * 2);
+      targetCtx.stroke();
+
+      targetCtx.fillStyle = 'rgba(124, 58, 237, 0.45)';
+      targetCtx.font = `${Math.round(radius * 0.28)}px 'Inter', sans-serif`;
+      targetCtx.textAlign = 'center';
+      targetCtx.textBaseline = 'middle';
+      targetCtx.fillText('+', cx, cy);
+      targetCtx.restore();
+    }
+
+    // 1. ZONA DE DOBLEZ / SANGRÍA (ILUSTRADA CON SOMBREADO CIAN)
+    const bleedR = radius * (specs.bleedMM / specs.cutMM);
+    const frontR = radius * (specs.sizeMM / specs.cutMM); // Frente visible real de la chapa
+    const highlight = options.highlightGuide || null;
+
+    if (drawGuides && !isExport) {
+      targetCtx.save();
+      // Franja de doblado: anillo entre el frente y el corte (lo que se dobla)
+      targetCtx.beginPath();
+      targetCtx.arc(cx, cy, radius, 0, Math.PI * 2);
+      targetCtx.arc(cx, cy, bleedR, 0, Math.PI * 2, true);
+      targetCtx.fillStyle = (highlight === 'bleed') ? 'rgba(6, 182, 212, 0.45)' : 'rgba(6, 182, 212, 0.22)';
+      targetCtx.fill();
+
+      // Halo oscuro base para máximo contraste en la línea de sangría
+      targetCtx.beginPath();
+      targetCtx.arc(cx, cy, bleedR, 0, Math.PI * 2);
+      targetCtx.lineWidth = (highlight === 'bleed') ? 5 : 3.5;
+      targetCtx.strokeStyle = 'rgba(0, 0, 0, 0.65)';
+      targetCtx.stroke();
+
+      // Línea de doblez / sangría punteada cian brillante
+      targetCtx.beginPath();
+      targetCtx.arc(cx, cy, bleedR, 0, Math.PI * 2);
+      targetCtx.setLineDash([5, 3]);
+      targetCtx.lineWidth = (highlight === 'bleed') ? 4 : 2.5;
+      targetCtx.strokeStyle = (highlight === 'bleed') ? '#22D3EE' : '#06B6D4';
+      if (highlight === 'bleed') {
+        targetCtx.shadowColor = '#06B6D4';
+        targetCtx.shadowBlur = 12;
+      }
+      targetCtx.stroke();
+      targetCtx.restore();
+
+      // Halo oscuro base para el frente visible
+      targetCtx.save();
+      targetCtx.beginPath();
+      targetCtx.arc(cx, cy, frontR, 0, Math.PI * 2);
+      targetCtx.lineWidth = (highlight === 'front') ? 5 : 3.5;
+      targetCtx.strokeStyle = 'rgba(0, 0, 0, 0.65)';
+      targetCtx.stroke();
+
+      // Línea frontal / zona visible dorada / ámbar
+      targetCtx.beginPath();
+      targetCtx.arc(cx, cy, frontR, 0, Math.PI * 2);
+      targetCtx.setLineDash([4, 3]);
+      targetCtx.lineWidth = (highlight === 'front') ? 4 : 2.5;
+      targetCtx.strokeStyle = (highlight === 'front') ? '#FBBF24' : '#F59E0B';
+      if (highlight === 'front') {
+        targetCtx.shadowColor = '#F59E0B';
+        targetCtx.shadowBlur = 12;
+      }
+      targetCtx.stroke();
+      targetCtx.restore();
+    }
+
+    // 2. LÍNEA DE CORTE (TROQUEL EXTERIOR)
+    if (drawCropMark || !isExport) {
+      targetCtx.save();
+      targetCtx.beginPath();
+      targetCtx.arc(cx, cy, radius, 0, Math.PI * 2);
+
+      if (isExport) {
+        // En impresión: punteado fino para tijera
+        targetCtx.setLineDash([Math.max(2, diameterPx * 0.02), Math.max(2, diameterPx * 0.016)]);
+        targetCtx.lineWidth = Math.max(0.8, diameterPx * 0.0035);
+        targetCtx.strokeStyle = 'rgba(20, 24, 27, 0.55)';
+        targetCtx.stroke();
+      } else {
+        // En pantalla: ALTO CONTRASTE (halo oscuro de base + línea roja carmesí brillante)
+        targetCtx.save();
+        targetCtx.lineWidth = (highlight === 'cut') ? 5 : 3.5;
+        targetCtx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
+        targetCtx.stroke();
+        targetCtx.restore();
+
+        targetCtx.setLineDash([6, 4]);
+        targetCtx.lineWidth = (highlight === 'cut') ? 4 : 2.5;
+        targetCtx.strokeStyle = (highlight === 'cut') ? '#FF2222' : '#EF4444';
+        if (highlight === 'cut') {
+          targetCtx.shadowColor = '#EF4444';
+          targetCtx.shadowBlur = 14;
+        }
+        targetCtx.stroke();
+      }
+      targetCtx.restore();
+    }
+
+    // 3. ARO DE CHAPA SELECCIONADA
+    if (isSelected && !isExport) {
+      targetCtx.save();
+      targetCtx.beginPath();
+      targetCtx.arc(cx, cy, radius + 3, 0, Math.PI * 2);
+      targetCtx.lineWidth = 3;
+      targetCtx.strokeStyle = '#F43F5E';
+      targetCtx.stroke();
+
+      targetCtx.beginPath();
+      targetCtx.arc(cx, cy, radius + 6, 0, Math.PI * 2);
+      targetCtx.lineWidth = 1.5;
+      targetCtx.strokeStyle = 'rgba(244, 63, 94, 0.4)';
+      targetCtx.stroke();
+      targetCtx.restore();
+    }
+
+    targetCtx.restore();
+  }
+
+  // --- RENDER DE LA HOJA EN PANTALLA ---
+  let renderedCellBounds = [];
+
+  function redrawSheet() {
+    const grid = computeSheetGrid();
+    const page = getActivePage();
+
+    // Actualizar badges del header
+    statBadgeSize.textContent = `${grid.specs.sizeMM} mm`;
+    const paperLabel = selPaper.options[selPaper.selectedIndex].text.split('—')[0].trim();
+    const orientLabel = paperOrientation === 'portrait' ? 'Vert' : 'Horiz';
+    const layoutLabel = layoutMode === 'staggered' ? 'Tresbolillo' : 'Cuadrícula';
+    statPaperName.textContent = `${paperLabel} (${orientLabel})`;
+    statCapacity.textContent = `${grid.totalCapacity} / hoja (${layoutLabel})`;
+
+    // Escala de previsualización en pantalla
+    const screenWidthPx = 760;
+    const pxPerMM = screenWidthPx / grid.pw;
+    const canvasW = Math.round(grid.pw * pxPerMM);
+    const canvasH = Math.round(grid.ph * pxPerMM);
+
+    sheetCanvas.width = canvasW;
+    sheetCanvas.height = canvasH;
+
+    sheetCtx.fillStyle = '#FFFFFF';
+    sheetCtx.fillRect(0, 0, canvasW, canvasH);
+
+    // Borde del papel
+    sheetCtx.strokeStyle = '#CBD5E1';
+    sheetCtx.lineWidth = 1;
+    sheetCtx.strokeRect(0.5, 0.5, canvasW - 1, canvasH - 1);
+
+    renderedCellBounds = [];
+
+    const is3D = (inspectorPreviewMode === 'real3d');
+
+    if (grid.totalCapacity > 0) {
+      const cutPx = grid.specs.cutMM * pxPerMM;
+
+      grid.badges.forEach(b => {
+        const cx = b.xMM * pxPerMM;
+        const cy = b.yMM * pxPerMM;
+        const cellData = page.cells[b.cellKey] || null;
+        const isSelected = (selectedCellKey === b.cellKey);
+
+        renderSingleBadgeToContext(
+          sheetCtx, cx, cy, cutPx, cellData, grid.specs, {
+            isExport: false,
+            drawCropMark: !is3D && chkCropMarks.checked,
+            drawGuides: !is3D && chkShowGuides.checked,
+            isSelected,
+            isReal3D: is3D
+          }
+        );
+
+        renderedCellBounds.push({
+          r: b.r,
+          c: b.c,
+          cellKey: b.cellKey,
+          cx, cy,
+          radius: cutPx / 2,
+          cutPx
+        });
+      });
+    }
+
+    applyViewportZoom();
+    updateInspector();
+    updateTrayUsage();
+    renderTabs();
+    scheduleAutoSave();
+  }
+
+  function applyViewportZoom() {
+    sheetPaper.style.transform = `scale(${viewZoom})`;
+    lblViewZoom.textContent = `${Math.round(viewZoom * 100)}%`;
+  }
+
+  // --- ESTADO Y MODO DEL INSPECTOR ---
+  let activeHighlightGuide = null;
+  let inspectorLocalMode = 'guides'; // 'guides' o 'real3d'
+  let isZoomModalOpen = false;
+
+  // REFS DEL MODAL LUPA
+  const inspectorZoomModal = document.getElementById('inspectorZoomModal');
+  const btnOpenZoomModal = document.getElementById('btnOpenZoomModal');
+  const btnCloseZoomModal = document.getElementById('btnCloseZoomModal');
+  const closeZoomModalBackdrop = document.getElementById('closeZoomModalBackdrop');
+  const zoomModalCanvas = document.getElementById('zoomModalCanvas');
+  const zoomModalCtx = zoomModalCanvas ? zoomModalCanvas.getContext('2d') : null;
+  const modalCellTag = document.getElementById('modalCellTag');
+  const valModalCut = document.getElementById('valModalCut');
+  const valModalBleed = document.getElementById('valModalBleed');
+  const valModalSafe = document.getElementById('valModalSafe');
+  const badgePreviewCircleWrap = document.getElementById('badgePreviewCircleWrap');
+
+  function openZoomModal() {
+    isZoomModalOpen = true;
+    if (inspectorZoomModal) inspectorZoomModal.style.display = 'flex';
+    updateInspector();
+  }
+
+  function closeZoomModal() {
+    isZoomModalOpen = false;
+    if (inspectorZoomModal) inspectorZoomModal.style.display = 'none';
+  }
+
+  if (btnOpenZoomModal) btnOpenZoomModal.addEventListener('click', openZoomModal);
+  if (badgePreviewCircleWrap) {
+    badgePreviewCircleWrap.addEventListener('dblclick', openZoomModal);
+  }
+  if (btnCloseZoomModal) btnCloseZoomModal.addEventListener('click', closeZoomModal);
+  if (closeZoomModalBackdrop) closeZoomModalBackdrop.addEventListener('click', closeZoomModal);
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isZoomModalOpen) closeZoomModal();
+  });
+
+  // RENDER DEL MODAL GIGANTE (450px)
+  function renderZoomModalCanvas(cellData, specs) {
+    if (!zoomModalCtx) return;
+    zoomModalCtx.clearRect(0, 0, 450, 450);
+    const [r, c] = selectedCellKey.split('_').map(Number);
+    if (modalCellTag) modalCellTag.textContent = `Fila ${(r || 0) + 1} · Col ${(c || 0) + 1}`;
+    if (valModalCut) valModalCut.textContent = `${specs.cutMM} mm`;
+    if (valModalBleed) valModalBleed.textContent = `${specs.bleedMM} mm`;
+    if (valModalSafe) valModalSafe.textContent = `${specs.sizeMM} mm`;
+
+    renderSingleBadgeToContext(
+      zoomModalCtx, 225, 225, 420, cellData, specs, {
+        isExport: false,
+        drawCropMark: true,
+        drawGuides: true,
+        isSelected: false,
+        isReal3D: false,
+        highlightGuide: activeHighlightGuide
+      }
+    );
+  }
+
+  // ARRASTRE DE CENTRADO EN EL MODAL GIGANTE
+  let isPanningModal = false;
+  let modalPanStart = { x: 0, y: 0 };
+  let initialModalOffset = { offX: 0, offY: 0 };
+
+  if (zoomModalCanvas) {
+    zoomModalCanvas.addEventListener('pointerdown', (e) => {
+      const page = getActivePage();
+      const cellData = page.cells[selectedCellKey];
+      if (cellData && cellData.imgId) {
+        isPanningModal = true;
+        modalPanStart = { x: e.clientX, y: e.clientY };
+        initialModalOffset = { offX: cellData.offX || 0, offY: cellData.offY || 0 };
+        zoomModalCanvas.setPointerCapture(e.pointerId);
+      }
+    });
+
+    zoomModalCanvas.addEventListener('pointermove', (e) => {
+      if (isPanningModal) {
+        const page = getActivePage();
+        const cellData = page.cells[selectedCellKey];
+        if (cellData) {
+          const deltaX = e.clientX - modalPanStart.x;
+          const deltaY = e.clientY - modalPanStart.y;
+          cellData.offX = initialModalOffset.offX + deltaX / 420;
+          cellData.offY = initialModalOffset.offY + deltaY / 420;
+          updateInspector();
+          redrawSheet();
+        }
+      }
+    });
+
+    const endModalPan = () => {
+      if (isPanningModal) {
+        isPanningModal = false;
+        scheduleAutoSave();
+      }
+    };
+    zoomModalCanvas.addEventListener('pointerup', endModalPan);
+    zoomModalCanvas.addEventListener('pointercancel', endModalPan);
+    zoomModalCanvas.addEventListener('wheel', (e) => {
+      const page = getActivePage();
+      const cellData = page.cells[selectedCellKey];
+      if (cellData && cellData.imgId) {
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 0.08 : -0.08;
+        cellData.zoom = Math.max(0.8, Math.min(3.5, (cellData.zoom || 1.0) + delta));
+        rngCellZoom.value = Math.round(cellData.zoom * 100);
+        lblCellZoom.textContent = `${rngCellZoom.value}%`;
+        updateInspector();
+        redrawSheet();
+      }
+    }, { passive: false });
+  }
+
+  // LEYENDA ANATÓMICA INTERACTIVA (HIGHLIGHT AL PASAR EL MOUSE O CLIC)
+  document.querySelectorAll('.chip-guide').forEach(chip => {
+    const guideType = chip.dataset.guide;
+    chip.addEventListener('mouseenter', () => {
+      activeHighlightGuide = guideType;
+      document.querySelectorAll(`.chip-guide[data-guide="${guideType}"]`).forEach(c => c.classList.add('active'));
+      updateInspector();
+    });
+    chip.addEventListener('mouseleave', () => {
+      activeHighlightGuide = null;
+      document.querySelectorAll('.chip-guide').forEach(c => c.classList.remove('active'));
+      updateInspector();
+    });
+    chip.addEventListener('click', () => {
+      activeHighlightGuide = (activeHighlightGuide === guideType) ? null : guideType;
+      document.querySelectorAll('.chip-guide').forEach(c => c.classList.remove('active'));
+      if (activeHighlightGuide) {
+        document.querySelectorAll(`.chip-guide[data-guide="${guideType}"]`).forEach(c => c.classList.add('active'));
+      }
+      updateInspector();
+    });
+  });
+
+  // --- INSPECTOR PANEL AMPLIADO Y EXPLICATIVO ---
+  function updateInspector() {
+    const page = getActivePage();
+    const cellData = page.cells[selectedCellKey];
+
+    const [r, c] = selectedCellKey.split('_').map(Number);
+    inspectorCellTag.textContent = `Fila ${(r || 0) + 1} · Col ${(c || 0) + 1}`;
+
+    inspectorCtx.clearRect(0, 0, 380, 380);
+    const specs = getBadgeSpecs(parseFloat(selBadgeSize.value), 300);
+
+    // Actualizar valores en la leyenda anatómica
+    valCutMM.textContent = `${specs.cutMM} mm`;
+    valBleedMM.textContent = `${specs.bleedMM} mm`;
+    valSafeMM.textContent = `${specs.sizeMM} mm`;
+
+    // En el inspector, garantizamos ver las guías técnicas nítidas
+    const is3D = (inspectorLocalMode === 'real3d');
+
+    if (cellData && cellData.imgId) {
+      const imgItem = getImageById(cellData.imgId);
+      inspectorImgName.textContent = imgItem ? imgItem.name : 'Imagen seleccionada';
+      rngCellZoom.value = Math.round((cellData.zoom || 1.0) * 100);
+      lblCellZoom.textContent = `${rngCellZoom.value}%`;
+      rngCellBorder.value = Math.round((cellData.border || 0) * 100);
+      lblCellBorder.textContent = `${rngCellBorder.value}%`;
+
+      renderSingleBadgeToContext(
+        inspectorCtx, 190, 190, 360, cellData, specs, {
+          isExport: false,
+          drawCropMark: true,
+          drawGuides: !is3D,
+          isSelected: false,
+          isReal3D: is3D,
+          highlightGuide: activeHighlightGuide
+        }
+      );
+    } else {
+      inspectorImgName.textContent = 'Sin imagen (vacía)';
+      rngCellZoom.value = 100;
+      lblCellZoom.textContent = '100%';
+      rngCellBorder.value = Math.round(parseFloat(rngDefaultBorder.value));
+      lblCellBorder.textContent = `${rngCellBorder.value}%`;
+
+      renderSingleBadgeToContext(
+        inspectorCtx, 190, 190, 360, null, specs, {
+          isExport: false,
+          drawCropMark: true,
+          drawGuides: !is3D,
+          isSelected: false,
+          isReal3D: is3D,
+          highlightGuide: activeHighlightGuide
+        }
+      );
+    }
+
+    if (isZoomModalOpen) {
+      renderZoomModalCanvas(cellData, specs);
+    }
+  }
+
+  // --- INTERACCIÓN EN EL CANVAS (CLIC & ARRASTRE PARA CENTRAR) ---
+  function getCanvasCoords(event) {
+    const rect = sheetCanvas.getBoundingClientRect();
+    const scaleX = sheetCanvas.width / rect.width;
+    const scaleY = sheetCanvas.height / rect.height;
+    return {
+      x: (event.clientX - rect.left) * scaleX,
+      y: (event.clientY - rect.top) * scaleY
+    };
+  }
+
+  function findCellAt(pxX, pxY) {
+    for (const b of renderedCellBounds) {
+      const dist = Math.hypot(b.cx - pxX, b.cy - pxY);
+      if (dist <= b.radius) return b;
+    }
+    return null;
+  }
+
+  sheetCanvas.addEventListener('pointerdown', (e) => {
+    const coords = getCanvasCoords(e);
+    const targetCell = findCellAt(coords.x, coords.y);
+
+    if (targetCell) {
+      selectedCellKey = targetCell.cellKey;
+      const page = getActivePage();
+      const cellData = page.cells[selectedCellKey];
+
+      if (cellData && cellData.imgId) {
+        isPanningBadge = true;
+        panningCellKey = targetCell.cellKey;
+        panStartPoint = { x: coords.x, y: coords.y };
+        initialCellOffset = { offX: cellData.offX || 0, offY: cellData.offY || 0 };
+        sheetCanvas.classList.add('panning-img');
+        sheetCanvas.setPointerCapture(e.pointerId);
+      }
+      redrawSheet();
+    }
+  });
+
+  sheetCanvas.addEventListener('pointermove', (e) => {
+    const coords = getCanvasCoords(e);
+
+    if (isPanningBadge && panningCellKey) {
+      const page = getActivePage();
+      const cellData = page.cells[panningCellKey];
+      const targetCell = renderedCellBounds.find(b => b.cellKey === panningCellKey);
+
+      if (cellData && targetCell) {
+        const deltaX = coords.x - panStartPoint.x;
+        const deltaY = coords.y - panStartPoint.y;
+
+        cellData.offX = initialCellOffset.offX + (deltaX / targetCell.cutPx);
+        cellData.offY = initialCellOffset.offY + (deltaY / targetCell.cutPx);
+        redrawSheet();
+      }
+    } else {
+      const cell = findCellAt(coords.x, coords.y);
+      if (cell) {
+        const page = getActivePage();
+        const hasImg = page.cells[cell.cellKey] && page.cells[cell.cellKey].imgId;
+        sheetCanvas.classList.toggle('hovering-badge', !!hasImg);
+      } else {
+        sheetCanvas.classList.remove('hovering-badge');
+      }
+    }
+  });
+
+  const endPan = () => {
+    if (isPanningBadge) {
+      isPanningBadge = false;
+      panningCellKey = null;
+      sheetCanvas.classList.remove('panning-img');
+      scheduleAutoSave();
+    }
+  };
+  sheetCanvas.addEventListener('pointerup', endPan);
+  sheetCanvas.addEventListener('pointercancel', endPan);
+
+  // ARRASTRE DE CENTRADO EN EL VISOR DEL INSPECTOR
+  badgeInspectorCanvas.addEventListener('pointerdown', (e) => {
+    const page = getActivePage();
+    const cellData = page.cells[selectedCellKey];
+    if (cellData && cellData.imgId) {
+      isPanningInspector = true;
+      inspectorPanStart = { x: e.clientX, y: e.clientY };
+      initialInspectorOffset = { offX: cellData.offX || 0, offY: cellData.offY || 0 };
+      badgeInspectorCanvas.classList.add('panning-img');
+      badgeInspectorCanvas.setPointerCapture(e.pointerId);
+    }
+  });
+
+  badgeInspectorCanvas.addEventListener('pointermove', (e) => {
+    if (isPanningInspector) {
+      const page = getActivePage();
+      const cellData = page.cells[selectedCellKey];
+      if (cellData) {
+        const deltaX = e.clientX - inspectorPanStart.x;
+        const deltaY = e.clientY - inspectorPanStart.y;
+        // Diámetro en inspector ampliado es ~350px
+        cellData.offX = initialInspectorOffset.offX + (deltaX / 350);
+        cellData.offY = initialInspectorOffset.offY + (deltaY / 350);
+        redrawSheet();
+      }
+    }
+  });
+
+  const endInspectorPan = () => {
+    if (isPanningInspector) {
+      isPanningInspector = false;
+      badgeInspectorCanvas.classList.remove('panning-img');
+      scheduleAutoSave();
+    }
+  };
+  badgeInspectorCanvas.addEventListener('pointerup', endInspectorPan);
+  badgeInspectorCanvas.addEventListener('pointercancel', endInspectorPan);
+
+  // CONMUTADOR DE VISTA SINCRONIZADO (EN BARRA DE HOJA Y EN PANEL INSPECTOR)
+  function setViewMode(mode) {
+    inspectorPreviewMode = mode;
+    [groupGlobalViewMode, groupPreviewMode].forEach(grp => {
+      if (!grp) return;
+      grp.querySelectorAll('.btn-toggle').forEach(b => {
+        b.classList.toggle('active', b.dataset.mode === mode);
+      });
+    });
+    redrawSheet();
+    updateInspector();
+    showToast(mode === 'real3d' ? '🔘 Modo Botón Real 3D: Simulando chapas armadas y terminadas' : '📐 Modo Guías Técnicas: Visualizando líneas de corte y doblado');
+  }
+
+  if (groupGlobalViewMode) {
+    groupGlobalViewMode.querySelectorAll('.btn-toggle').forEach(btn => {
+      btn.addEventListener('click', () => setViewMode(btn.dataset.mode));
+    });
+  }
+
+  if (groupPreviewMode) {
+    groupPreviewMode.querySelectorAll('.btn-toggle').forEach(btn => {
+      btn.addEventListener('click', () => setViewMode(btn.dataset.mode));
+    });
+  }
+
+  // ZOOM CON RUEDA DEL RATÓN EN HOJA E INSPECTOR
+  sheetCanvas.addEventListener('wheel', (e) => {
+    const coords = getCanvasCoords(e);
+    const cell = findCellAt(coords.x, coords.y);
+    if (cell) {
+      e.preventDefault();
+      const page = getActivePage();
+      const cellData = getOrCreateCellData(page, cell.cellKey);
+      if (cellData.imgId) {
+        const delta = e.deltaY < 0 ? 0.08 : -0.08;
+        cellData.zoom = Math.max(0.6, Math.min(4.0, (cellData.zoom || 1.0) + delta));
+        selectedCellKey = cell.cellKey;
+        redrawSheet();
+      }
+    }
+  }, { passive: false });
+
+  badgeInspectorCanvas.addEventListener('wheel', (e) => {
+    const page = getActivePage();
+    const cellData = page.cells[selectedCellKey];
+    if (cellData && cellData.imgId) {
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 0.08 : -0.08;
+      cellData.zoom = Math.max(0.6, Math.min(4.0, (cellData.zoom || 1.0) + delta));
+      redrawSheet();
+    }
+  }, { passive: false });
+
+  // DRAG & DROP DE ARCHIVOS Y DE BANDEJA DIRECTO AL LIENZO
+  sheetCanvas.addEventListener('dragover', (e) => e.preventDefault());
+  sheetCanvas.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    const coords = getCanvasCoords(e);
+    const cell = findCellAt(coords.x, coords.y);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const addedItems = await addImagesFromFiles(e.dataTransfer.files);
+      if (addedItems.length > 0) {
+        const page = getActivePage();
+        const grid = computeSheetGrid();
+        if (cell) {
+          assignImageToCell(page, cell.cellKey, addedItems[0].id);
+          selectedCellKey = cell.cellKey;
+          if (addedItems.length > 1) {
+            let nextIdx = 1;
+            for (let b of grid.badges) {
+              if (nextIdx >= addedItems.length) break;
+              if (!page.cells[b.cellKey] || !page.cells[b.cellKey].imgId) {
+                assignImageToCell(page, b.cellKey, addedItems[nextIdx++].id);
+              }
+            }
+          }
+        } else {
+          let nextIdx = 0;
+          for (let b of grid.badges) {
+            if (nextIdx >= addedItems.length) break;
+            if (!page.cells[b.cellKey] || !page.cells[b.cellKey].imgId) {
+              assignImageToCell(page, b.cellKey, addedItems[nextIdx++].id);
+            }
+          }
+        }
+        redrawSheet();
+        showToast(`${addedItems.length} imagen(es) colocadas en la hoja`);
+      }
+      return;
+    }
+
+    if (cell) {
+      const imgId = e.dataTransfer.getData('text/plain');
+      if (imgId && getImageById(imgId)) {
+        assignImageToCell(getActivePage(), cell.cellKey, imgId);
+        selectedCellKey = cell.cellKey;
+        redrawSheet();
+        showToast('Imagen colocada en la chapa');
+      }
+    }
+  });
+
+  function assignImageToCell(page, cellKey, imgId) {
+    const cellData = getOrCreateCellData(page, cellKey);
+    cellData.imgId = imgId;
+    cellData.offX = 0;
+    cellData.offY = 0;
+    cellData.zoom = 1.0;
+  }
+
+  // --- CONTROLES DEL INSPECTOR DE CHAPA ---
+  rngCellZoom.addEventListener('input', () => {
+    const page = getActivePage();
+    const cellData = getOrCreateCellData(page, selectedCellKey);
+    cellData.zoom = parseFloat(rngCellZoom.value) / 100;
+    lblCellZoom.textContent = `${rngCellZoom.value}%`;
+    redrawSheet();
+  });
+
+  rngCellBorder.addEventListener('input', () => {
+    const page = getActivePage();
+    const cellData = getOrCreateCellData(page, selectedCellKey);
+    cellData.border = parseFloat(rngCellBorder.value) / 100;
+    lblCellBorder.textContent = `${rngCellBorder.value}%`;
+    redrawSheet();
+  });
+
+  btnCellCenter.addEventListener('click', () => {
+    const page = getActivePage();
+    const cellData = getOrCreateCellData(page, selectedCellKey);
+    cellData.offX = 0;
+    cellData.offY = 0;
+    redrawSheet();
+    showToast('Imagen centrada');
+  });
+
+  btnCellRotate.addEventListener('click', () => {
+    const page = getActivePage();
+    const cellData = getOrCreateCellData(page, selectedCellKey);
+    cellData.rotation = ((cellData.rotation || 0) + 90) % 360;
+    redrawSheet();
+  });
+
+  btnCellCover.addEventListener('click', () => {
+    const page = getActivePage();
+    const cellData = getOrCreateCellData(page, selectedCellKey);
+    cellData.zoom = 1.0;
+    cellData.offX = 0;
+    cellData.offY = 0;
+    cellData.border = 0;
+    redrawSheet();
+  });
+
+  btnCellContain.addEventListener('click', () => {
+    const page = getActivePage();
+    const cellData = getOrCreateCellData(page, selectedCellKey);
+    const specs = getBadgeSpecs(parseFloat(selBadgeSize.value), 300);
+    cellData.border = Math.max(0.05, 1 - (specs.safeMM / specs.cutMM));
+    cellData.zoom = 1.0;
+    cellData.offX = 0;
+    cellData.offY = 0;
+    redrawSheet();
+  });
+
+  btnApplyAllSheet.addEventListener('click', () => {
+    const page = getActivePage();
+    const srcData = page.cells[selectedCellKey];
+    if (!srcData || !srcData.imgId) {
+      showToast('Selecciona primero una chapa con imagen');
+      return;
+    }
+    const grid = computeSheetGrid();
+    grid.badges.forEach(b => {
+      page.cells[b.cellKey] = { ...srcData };
+    });
+    redrawSheet();
+    showToast('Imagen replicada a todas las chapas de esta hoja');
+  });
+
+  btnClearCell.addEventListener('click', () => {
+    const page = getActivePage();
+    delete page.cells[selectedCellKey];
+    redrawSheet();
+  });
+
+  // --- GESTIÓN DE HOJAS (TABS, DUPLICAR, ELIMINAR) ---
+  function renderTabs() {
+    tabsList.innerHTML = '';
+    pages.forEach((page, idx) => {
+      const tab = document.createElement('div');
+      tab.className = `sheet-tab ${idx === activePageIndex ? 'active' : ''}`;
+      
+      const filledCount = Object.values(page.cells).filter(c => c && c.imgId).length;
+      const tabTitle = document.createElement('span');
+      tabTitle.className = 'tab-title-text';
+      tabTitle.textContent = `${page.name} (${filledCount})`;
+      tabTitle.title = 'Haz doble clic para renombrar esta hoja';
+      tabTitle.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        const newName = prompt('Nombre para esta hoja (ej: Frente, Dorso, Logos):', page.name);
+        if (newName && newName.trim()) {
+          page.name = newName.trim();
+          renderTabs();
+          scheduleAutoSave();
+          showToast(`Hoja renombrada a "${page.name}"`);
+        }
+      });
+      tab.appendChild(tabTitle);
+
+      if (pages.length > 1) {
+        const closeBtn = document.createElement('span');
+        closeBtn.className = 'close-tab';
+        closeBtn.innerHTML = '&times;';
+        closeBtn.title = 'Eliminar esta hoja';
+        closeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (confirm(`¿Eliminar ${page.name}?`)) {
+            pages.splice(idx, 1);
+            if (activePageIndex >= pages.length) activePageIndex = pages.length - 1;
+            redrawSheet();
+          }
+        });
+        tab.appendChild(closeBtn);
+      }
+
+      tab.addEventListener('click', () => {
+        activePageIndex = idx;
+        redrawSheet();
+      });
+
+      tabsList.appendChild(tab);
+    });
+  }
+
+  btnAddSheet.addEventListener('click', () => {
+    pageCounter++;
+    pages.push({
+      id: pageCounter,
+      name: `Hoja ${pageCounter}`,
+      cells: {}
+    });
+    activePageIndex = pages.length - 1;
+    redrawSheet();
+    showToast(`Nueva hoja añadida (${pages[activePageIndex].name})`);
+  });
+
+  btnDuplicateSheet.addEventListener('click', () => {
+    const current = getActivePage();
+    pageCounter++;
+    const clonedCells = JSON.parse(JSON.stringify(current.cells));
+    pages.push({
+      id: pageCounter,
+      name: `Hoja ${pageCounter} (Copia)`,
+      cells: clonedCells
+    });
+    activePageIndex = pages.length - 1;
+    redrawSheet();
+    showToast(`Hoja duplicada con éxito`);
+  });
+
+  // --- BANDEJA DE IMÁGENES (TRAY & DRAG) ---
+  function addImagesFromFiles(files) {
+    return new Promise((resolve) => {
+      const fileArr = Array.from(files).filter(f => f.type && f.type.startsWith('image/'));
+      if (!fileArr.length) {
+        resolve([]);
+        return;
+      }
+      let loaded = 0;
+      const newlyAdded = [];
+
+      fileArr.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const imgEl = new Image();
+          imgEl.onload = () => {
+            const id = `img_${libCounter++}`;
+            const item = {
+              id,
+              name: file.name,
+              imgElement: imgEl,
+              src: e.target.result
+            };
+            library.push(item);
+            newlyAdded.push(item);
+            activeImageId = id;
+
+            loaded++;
+            if (loaded === fileArr.length) {
+              renderTray();
+              resolve(newlyAdded);
+            }
+          };
+          imgEl.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+  }
+
+  function renderTray() {
+    trayGallery.innerHTML = '';
+    library.forEach(item => {
+      const thumb = document.createElement('div');
+      thumb.className = `tray-thumb ${item.id === activeImageId ? 'active' : ''}`;
+      thumb.draggable = true;
+      thumb.dataset.id = item.id;
+      thumb.title = item.name;
+
+      const img = document.createElement('img');
+      img.src = item.src;
+      thumb.appendChild(img);
+
+      const usage = document.createElement('div');
+      usage.className = 'usage-count';
+      usage.dataset.imgid = item.id;
+      usage.textContent = '0x';
+      thumb.appendChild(usage);
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn-delete-img';
+      delBtn.innerHTML = '&times;';
+      delBtn.title = 'Quitar de la biblioteca';
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        library = library.filter(x => x.id !== item.id);
+        pages.forEach(p => {
+          Object.keys(p.cells).forEach(k => {
+            if (p.cells[k] && p.cells[k].imgId === item.id) delete p.cells[k];
+          });
+        });
+        if (activeImageId === item.id) activeImageId = library[0] ? library[0].id : null;
+        renderTray();
+        redrawSheet();
+      });
+      thumb.appendChild(delBtn);
+
+      thumb.addEventListener('click', () => {
+        activeImageId = item.id;
+        const page = getActivePage();
+        assignImageToCell(page, selectedCellKey, item.id);
+        renderTray();
+        redrawSheet();
+      });
+
+      thumb.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', item.id);
+      });
+
+      trayGallery.appendChild(thumb);
+    });
+    updateTrayUsage();
+  }
+
+  function updateTrayUsage() {
+    const counts = {};
+    pages.forEach(p => {
+      Object.values(p.cells).forEach(c => {
+        if (c && c.imgId) counts[c.imgId] = (counts[c.imgId] || 0) + 1;
+      });
+    });
+    trayGallery.querySelectorAll('.usage-count').forEach(el => {
+      const id = el.dataset.imgid;
+      el.textContent = `${counts[id] || 0}x`;
+    });
+  }
+
+  trayDropZone.addEventListener('click', () => batchFileInput.click());
+  batchFileInput.addEventListener('change', async (e) => {
+    const added = await addImagesFromFiles(e.target.files);
+    batchFileInput.value = '';
+    if (added.length) {
+      const page = getActivePage();
+      if (!page.cells['0_0'] || !page.cells['0_0'].imgId) {
+        assignImageToCell(page, '0_0', added[0].id);
+      }
+      redrawSheet();
+      showToast(`${added.length} foto(s) añadidas`);
+    }
+  });
+
+  ['dragenter', 'dragover'].forEach(ev => {
+    trayDropZone.addEventListener(ev, (e) => { e.preventDefault(); trayDropZone.classList.add('drag-over'); });
+  });
+  ['dragleave', 'drop'].forEach(ev => {
+    trayDropZone.addEventListener(ev, (e) => { e.preventDefault(); trayDropZone.classList.remove('drag-over'); });
+  });
+  trayDropZone.addEventListener('drop', async (e) => {
+    if (e.dataTransfer.files && e.dataTransfer.files.length) {
+      const added = await addImagesFromFiles(e.dataTransfer.files);
+      if (added.length) {
+        redrawSheet();
+        showToast(`${added.length} foto(s) subidas`);
+      }
+    }
+  });
+
+  // --- OPERACIONES RÁPIDAS DE DISTRIBUCIÓN ---
+  btnDistributeSheet.addEventListener('click', () => {
+    if (!library.length) {
+      showToast('Sube fotos a la bandeja primero');
+      return;
+    }
+    const grid = computeSheetGrid();
+    const page = getActivePage();
+    let imgIdx = 0;
+    grid.badges.forEach(b => {
+      const item = library[imgIdx % library.length];
+      assignImageToCell(page, b.cellKey, item.id);
+      imgIdx++;
+    });
+    redrawSheet();
+    showToast('Imágenes repartidas en esta hoja');
+  });
+
+  btnAutoPages.addEventListener('click', () => {
+    if (!library.length) {
+      showToast('Sube fotos a la bandeja primero');
+      return;
+    }
+    const grid = computeSheetGrid();
+    if (grid.totalCapacity <= 0) return;
+
+    const neededPages = Math.ceil(library.length / grid.totalCapacity);
+    pages = [];
+    let imgCursor = 0;
+
+    for (let p = 0; p < neededPages; p++) {
+      const newPage = {
+        id: p + 1,
+        name: `Hoja ${p + 1}`,
+        cells: {}
+      };
+      grid.badges.forEach(b => {
+        if (imgCursor < library.length) {
+          newPage.cells[b.cellKey] = {
+            imgId: library[imgCursor].id,
+            offX: 0,
+            offY: 0,
+            zoom: 1.0,
+            border: parseFloat(rngDefaultBorder.value) / 100,
+            rotation: 0
+          };
+          imgCursor++;
+        }
+      });
+      pages.push(newPage);
+    }
+    pageCounter = pages.length;
+    activePageIndex = 0;
+    redrawSheet();
+    showToast(`Se crearon ${pages.length} hoja(s) con todas las fotos`);
+  });
+
+  btnClearSheet.addEventListener('click', () => {
+    const page = getActivePage();
+    page.cells = {};
+    redrawSheet();
+    showToast('Hoja actual vaciada');
+  });
+
+  // --- ZOOM DEL LIENZO ---
+  btnZoomIn.addEventListener('click', () => {
+    viewZoom = Math.min(2.5, viewZoom + 0.15);
+    applyViewportZoom();
+  });
+  btnZoomOut.addEventListener('click', () => {
+    viewZoom = Math.max(0.4, viewZoom - 0.15);
+    applyViewportZoom();
+  });
+  btnFitSheet.addEventListener('click', () => {
+    const vp = canvasViewport.getBoundingClientRect();
+    const grid = computeSheetGrid();
+    const scaleX = (vp.width - 60) / (grid.pw * (760 / grid.pw));
+    const scaleY = (vp.height - 60) / (grid.ph * (760 / grid.pw));
+    viewZoom = Math.min(1.2, Math.max(0.45, Math.min(scaleX, scaleY)));
+    applyViewportZoom();
+  });
+
+  // --- TOGGLES DE PANELES LATERALES (RESPONSIVE & PANTALLAS NOTEBOOK) ---
+  if (btnToggleConfig) {
+    btnToggleConfig.addEventListener('click', () => {
+      if (window.innerWidth <= 950) {
+        configPanelEl.classList.toggle('open-drawer');
+        if (inspectorPanelEl) inspectorPanelEl.classList.remove('open-drawer');
+      } else {
+        workspaceEl.classList.toggle('hide-config');
+      }
+      setTimeout(() => btnFitSheet.click(), 280);
+    });
+  }
+
+  if (btnToggleInspector) {
+    btnToggleInspector.addEventListener('click', () => {
+      if (window.innerWidth <= 950) {
+        inspectorPanelEl.classList.toggle('open-drawer');
+        if (configPanelEl) configPanelEl.classList.remove('open-drawer');
+      } else {
+        workspaceEl.classList.toggle('hide-inspector');
+      }
+      setTimeout(() => btnFitSheet.click(), 280);
+    });
+  }
+
+  // Cerrar paneles flotantes al hacer clic en el lienzo (en pantallas móviles)
+  canvasViewport.addEventListener('click', () => {
+    if (window.innerWidth <= 950) {
+      if (configPanelEl) configPanelEl.classList.remove('open-drawer');
+      if (inspectorPanelEl) inspectorPanelEl.classList.remove('open-drawer');
+    }
+  });
+
+  // Al redimensionar la ventana o zoom, reajustar hoja automáticamente
+  window.addEventListener('resize', () => {
+    btnFitSheet.click();
+  });
+
+  // --- EXPORTACIÓN E IMPRESIÓN REAL EN ALTA RESOLUCIÓN ---
+  function generateHighResCanvas(page, customDpi = null) {
+    const dpi = customDpi || parseFloat(selDpi.value);
+    const paperType = selPaper.value;
+    let [pw, ph] = PAPER_MM[paperType] || PAPER_MM.a4;
+    if (paperOrientation === 'landscape') {
+      const temp = pw;
+      pw = ph;
+      ph = temp;
+    }
+
+    const sizeMM = parseFloat(selBadgeSize.value);
+    const specs = getBadgeSpecs(sizeMM, dpi);
+    const pxPerMM = dpi / 25.4;
+
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = Math.round(pw * pxPerMM);
+    outCanvas.height = Math.round(ph * pxPerMM);
+    const outCtx = outCanvas.getContext('2d');
+
+    outCtx.fillStyle = '#FFFFFF';
+    outCtx.fillRect(0, 0, outCanvas.width, outCanvas.height);
+
+    const cutPx = specs.cutPx;
+    const grid = computeSheetGrid();
+
+    grid.badges.forEach(b => {
+      const cx = b.xMM * pxPerMM;
+      const cy = b.yMM * pxPerMM;
+      const cellData = page.cells[b.cellKey];
+
+      if (cellData && cellData.imgId) {
+        renderSingleBadgeToContext(outCtx, cx, cy, cutPx, cellData, specs, {
+          isExport: true,
+          drawCropMark: chkCropMarks.checked,
+          drawGuides: false,
+          isSelected: false,
+          isReal3D: false
+        });
+      }
+    });
+
+    return outCanvas;
+  }
+
+  function downloadCanvasAsPng(canvas, filename) {
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => {
+          URL.revokeObjectURL(url);
+          resolve();
+        }, 300);
+      }, 'image/png');
+    });
+  }
+
+  function formatCleanDownloadName(page) {
+    const rawProj = (txtProjectName && txtProjectName.value.trim()) || 'Chapas';
+    const cleanProj = rawProj.replace(/[\\/:*?"<>|]/g, '').trim() || 'Chapas';
+    const cleanPage = (page.name || 'Hoja').replace(/[\\/:*?"<>|]/g, '').trim();
+    const size = selBadgeSize.value;
+    return `${cleanProj} - ${cleanPage} (${size}mm).png`;
+  }
+
+  btnExportCurrent.addEventListener('click', async () => {
+    const page = getActivePage();
+    const hasAny = Object.values(page.cells).some(c => c && c.imgId);
+    if (!hasAny) {
+      showToast('Esta hoja no tiene ninguna imagen');
+      return;
+    }
+    btnExportCurrent.disabled = true;
+    showToast('Generando PNG de alta resolución...');
+    const outCanvas = generateHighResCanvas(page);
+    const name = formatCleanDownloadName(page);
+    await downloadCanvasAsPng(outCanvas, name);
+    btnExportCurrent.disabled = false;
+    showToast(`¡Descargado: ${name}!`);
+  });
+
+  // --- GENERADOR DE ZIP 100% NATIVO (SIN LIBRERÍAS EXTERNAS, PARA MANTENER LA APP OFFLINE) ---
+  const CRC32_TABLE = (() => {
+    const table = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) {
+        c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      }
+      table[n] = c >>> 0;
+    }
+    return table;
+  })();
+
+  function crc32(bytes) {
+    let crc = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++) {
+      crc = (crc >>> 8) ^ CRC32_TABLE[(crc ^ bytes[i]) & 0xFF];
+    }
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  function dosDateTime(date) {
+    const time = ((date.getHours() & 0x1F) << 11) | ((date.getMinutes() & 0x3F) << 5) | ((date.getSeconds() >> 1) & 0x1F);
+    const day = (((date.getFullYear() - 1980) & 0x7F) << 9) | (((date.getMonth() + 1) & 0xF) << 5) | (date.getDate() & 0x1F);
+    return { time, day };
+  }
+
+  // Construye un archivo .zip válido (método STORE, sin compresión) a partir de
+  // [{ name: string, data: Uint8Array }]. Las imágenes PNG ya están comprimidas,
+  // así que STORE evita depender de una librería de compresión externa.
+  function buildZipBlob(files) {
+    const { time, day } = dosDateTime(new Date());
+    const GP_FLAG = 0x0800; // Nombres de archivo en UTF-8 (acentos, ñ, etc.)
+    const localParts = [];
+    const centralParts = [];
+    let offset = 0;
+
+    files.forEach(f => {
+      const nameBytes = new TextEncoder().encode(f.name);
+      const data = f.data;
+      const crc = crc32(data);
+      const size = data.length;
+
+      const localHeader = new Uint8Array(30);
+      const lv = new DataView(localHeader.buffer);
+      lv.setUint32(0, 0x04034b50, true);
+      lv.setUint16(4, 20, true);
+      lv.setUint16(6, GP_FLAG, true);
+      lv.setUint16(8, 0, true);
+      lv.setUint16(10, time, true);
+      lv.setUint16(12, day, true);
+      lv.setUint32(14, crc, true);
+      lv.setUint32(18, size, true);
+      lv.setUint32(22, size, true);
+      lv.setUint16(26, nameBytes.length, true);
+      lv.setUint16(28, 0, true);
+
+      localParts.push(localHeader, nameBytes, data);
+
+      const localHeaderOffset = offset;
+      offset += localHeader.length + nameBytes.length + data.length;
+
+      const centralHeader = new Uint8Array(46);
+      const cv = new DataView(centralHeader.buffer);
+      cv.setUint32(0, 0x02014b50, true);
+      cv.setUint16(4, 20, true);
+      cv.setUint16(6, 20, true);
+      cv.setUint16(8, GP_FLAG, true);
+      cv.setUint16(10, 0, true);
+      cv.setUint16(12, time, true);
+      cv.setUint16(14, day, true);
+      cv.setUint32(16, crc, true);
+      cv.setUint32(20, size, true);
+      cv.setUint32(24, size, true);
+      cv.setUint16(28, nameBytes.length, true);
+      cv.setUint16(30, 0, true);
+      cv.setUint16(32, 0, true);
+      cv.setUint16(34, 0, true);
+      cv.setUint16(36, 0, true);
+      cv.setUint32(38, 0, true);
+      cv.setUint32(42, localHeaderOffset, true);
+
+      centralParts.push(centralHeader, nameBytes);
+    });
+
+    const centralDirOffset = offset;
+    let centralDirSize = 0;
+    centralParts.forEach(p => { centralDirSize += p.length; });
+
+    const end = new Uint8Array(22);
+    const ev = new DataView(end.buffer);
+    ev.setUint32(0, 0x06054b50, true);
+    ev.setUint16(4, 0, true);
+    ev.setUint16(6, 0, true);
+    ev.setUint16(8, files.length, true);
+    ev.setUint16(10, files.length, true);
+    ev.setUint32(12, centralDirSize, true);
+    ev.setUint32(16, centralDirOffset, true);
+    ev.setUint16(20, 0, true);
+
+    return new Blob([...localParts, ...centralParts, end], { type: 'application/zip' });
+  }
+
+  function canvasToPngBytes(canvas) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(async (blob) => {
+        if (!blob) { reject(new Error('No se pudo generar el PNG')); return; }
+        const buf = await blob.arrayBuffer();
+        resolve(new Uint8Array(buf));
+      }, 'image/png');
+    });
+  }
+
+  function sanitizeFileName(str) {
+    return (str || '').replace(/[\\/:*?"<>|]/g, '').trim();
+  }
+
+  // --- DESCARGA DE CADA CHAPA COMO IMAGEN PNG INDIVIDUAL DENTRO DE UN .ZIP ---
+  btnExportImagesZip.addEventListener('click', async () => {
+    const page = getActivePage();
+    const grid = computeSheetGrid();
+    const dpi = parseFloat(selDpi.value);
+    const sizeMM = parseFloat(selBadgeSize.value);
+    const specs = getBadgeSpecs(sizeMM, dpi);
+    const cutPx = specs.cutPx;
+
+    const filledBadges = grid.badges.filter(b => {
+      const cellData = page.cells[b.cellKey];
+      return cellData && cellData.imgId;
+    });
+
+    if (!filledBadges.length) {
+      showToast('Esta hoja no tiene ninguna imagen');
+      return;
+    }
+
+    btnExportImagesZip.disabled = true;
+    showToast(`Generando ${filledBadges.length} imagen(es) en alta resolución...`);
+
+    const cleanProj = sanitizeFileName(txtProjectName && txtProjectName.value.trim()) || 'Chapas';
+    const usedNames = new Set();
+    const files = [];
+
+    try {
+      for (let i = 0; i < filledBadges.length; i++) {
+        const b = filledBadges[i];
+        const cellData = page.cells[b.cellKey];
+
+        const canvas = document.createElement('canvas');
+        canvas.width = cutPx;
+        canvas.height = cutPx;
+        const ctx = canvas.getContext('2d');
+
+        // Se reutiliza exactamente el mismo motor de dibujo que la hoja final,
+        // pero renderizando una sola chapa (recorte circular, zoom, borde y
+        // rotación tal como los dejó el usuario), sin marcas de corte.
+        renderSingleBadgeToContext(ctx, cutPx / 2, cutPx / 2, cutPx, cellData, specs, {
+          isExport: true,
+          drawCropMark: false,
+          drawGuides: false,
+          isSelected: false,
+          isReal3D: false
+        });
+
+        const imgItem = getImageById(cellData.imgId);
+        const baseName = sanitizeFileName(imgItem && imgItem.name ? imgItem.name.replace(/\.[^.]+$/, '') : 'Chapa') || 'Chapa';
+
+        let name = `${cleanProj} - ${String(i + 1).padStart(2, '0')} - ${baseName}.png`;
+        let suffix = 1;
+        while (usedNames.has(name)) {
+          name = `${cleanProj} - ${String(i + 1).padStart(2, '0')} - ${baseName} (${suffix}).png`;
+          suffix++;
+        }
+        usedNames.add(name);
+
+        const data = await canvasToPngBytes(canvas);
+        files.push({ name, data });
+      }
+
+      const zipBlob = buildZipBlob(files);
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${cleanProj} - Imagenes Individuales.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 500);
+
+      showToast(`¡ZIP descargado con ${files.length} imagen(es)!`);
+    } catch (err) {
+      console.error(err);
+      showToast('Ocurrió un error generando el ZIP');
+    } finally {
+      btnExportImagesZip.disabled = false;
+    }
+  });
+
+  btnExportAll.addEventListener('click', async () => {
+    const exportablePages = pages.filter(p => Object.values(p.cells).some(c => c && c.imgId));
+    if (!exportablePages.length) {
+      showToast('No hay ninguna chapa con imagen en el proyecto');
+      return;
+    }
+    btnExportAll.disabled = true;
+    showToast(`Generando ${exportablePages.length} hoja(s)...`);
+
+    for (let i = 0; i < exportablePages.length; i++) {
+      const p = exportablePages[i];
+      const outCanvas = generateHighResCanvas(p);
+      const name = formatCleanDownloadName(p);
+      await downloadCanvasAsPng(outCanvas, name);
+      await new Promise(r => setTimeout(r, 600));
+    }
+
+    btnExportAll.disabled = false;
+    showToast('Todas las hojas han sido descargadas');
+  });
+
+  // IMPRESIÓN DIRECTA EXACTA A TAMAÑO 100% REAL
+  btnDirectPrint.addEventListener('click', () => {
+    const page = getActivePage();
+    const hasAny = Object.values(page.cells).some(c => c && c.imgId);
+    if (!hasAny) {
+      showToast('La hoja actual no tiene ninguna imagen para imprimir');
+      return;
+    }
+
+    showToast('Preparando vista de impresión al 100%...');
+    const outCanvas = generateHighResCanvas(page, 300);
+    const dataUrl = outCanvas.toDataURL('image/png');
+
+    printArea.innerHTML = `
+      <div class="print-sheet-wrapper">
+        <img src="${dataUrl}" alt="Hoja de chapas">
+      </div>
+    `;
+
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => {
+        printArea.innerHTML = '';
+      }, 1000);
+    }, 250);
+  });
+
+  // --- TOGGLE DE ORIENTACIÓN ---
+  groupOrientation.querySelectorAll('.btn-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      groupOrientation.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      paperOrientation = btn.dataset.orient;
+      redrawSheet();
+    });
+  });
+
+  // --- TOGGLE DE DISPOSICIÓN (CUADRÍCULA vs TREMBOLILLO) ---
+  groupLayoutMode.querySelectorAll('.btn-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      groupLayoutMode.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      layoutMode = btn.dataset.layout;
+      redrawSheet();
+      showToast(layoutMode === 'staggered' ? 'Disposición en Tresbolillo activada (Mayor capacidad)' : 'Disposición en Cuadrícula activada');
+    });
+  });
+
+  // --- MAXIMIZADOR INTELIGENTE DE CAPACIDAD DE HOJA ---
+  btnMaximizeCapacity.addEventListener('click', () => {
+    const paperType = selPaper.value;
+    const sizeMM = parseFloat(selBadgeSize.value);
+
+    let bestConfig = null;
+    let maxFound = -1;
+
+    const orientations = ['portrait', 'landscape'];
+    const layouts = ['staggered', 'grid'];
+    // Márgenes optimizados de imprenta: 5mm de margen y 2mm de separación
+    const margins = [5, 4, 6, 8, 10];
+    const gaps = [2, 1.5, 3, 4];
+
+    for (const ori of orientations) {
+      for (const lay of layouts) {
+        for (const mar of margins) {
+          for (const gp of gaps) {
+            const g = computeSheetGrid({
+              paper: paperType,
+              orientation: ori,
+              layoutMode: lay,
+              sizeMM,
+              margin: mar,
+              gap: gp
+            });
+            if (g.totalCapacity > maxFound) {
+              maxFound = g.totalCapacity;
+              bestConfig = { orientation: ori, layoutMode: lay, margin: mar, gap: gp, capacity: g.totalCapacity };
+            }
+          }
+        }
+      }
+    }
+
+    if (bestConfig) {
+      paperOrientation = bestConfig.orientation;
+      groupOrientation.querySelectorAll('.btn-toggle').forEach(b => {
+        b.classList.toggle('active', b.dataset.orient === paperOrientation);
+      });
+
+      layoutMode = bestConfig.layoutMode;
+      groupLayoutMode.querySelectorAll('.btn-toggle').forEach(b => {
+        b.classList.toggle('active', b.dataset.layout === layoutMode);
+      });
+
+      rngMargin.value = bestConfig.margin;
+      lblMargin.textContent = `${bestConfig.margin}mm`;
+      rngGap.value = bestConfig.gap;
+      lblGap.textContent = `${bestConfig.gap}mm`;
+
+      redrawSheet();
+      const oriText = paperOrientation === 'portrait' ? 'Vertical' : 'Horizontal';
+      const layText = layoutMode === 'staggered' ? 'Tresbolillo' : 'Cuadrícula';
+      showToast(`⚡ ¡Aprovechamiento al máximo! Ahora caben ${bestConfig.capacity} chapas (${oriText}, ${layText})`);
+    }
+  });
+
+  // --- AJUSTE FINO DEL TROQUEL Y PRESETS (70mm vs 68mm) ---
+  function updateTotalCutDisplay() {
+    const specs = getBadgeSpecs(parseFloat(selBadgeSize.value), 300);
+    if (lblTotalCutMM) {
+      lblTotalCutMM.textContent = `${specs.cutMM} mm`;
+    }
+    const val = parseFloat(rngFineCut.value);
+    if (lblFineCut) {
+      lblFineCut.textContent = `${val > 0 ? '+' : ''}${val} mm`;
+    }
+    if (groupCutPresets) {
+      groupCutPresets.querySelectorAll('.btn-toggle').forEach(btn => {
+        const targetVal = parseFloat(btn.dataset.cut);
+        btn.classList.toggle('active', Math.abs(val - targetVal) < 0.1);
+      });
+    }
+  }
+
+  rngFineCut.addEventListener('input', () => {
+    updateTotalCutDisplay();
+    redrawSheet();
+  });
+
+  if (groupCutPresets) {
+    groupCutPresets.querySelectorAll('.btn-toggle').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const cutVal = parseFloat(btn.dataset.cut);
+        rngFineCut.value = cutVal;
+        updateTotalCutDisplay();
+        redrawSheet();
+        showToast(cutVal === 0 ? '✂️ Troquel en 70 mm (Estándar papel normal)' : '✂️ Troquel en 68 mm (Ideal para papel fotográfico o matriz justa)');
+      });
+    });
+  }
+
+  // --- PERSISTENCIA LOCAL (INDEXEDDB) - ANTI-PÉRDIDAS POR REINICIO ---
+  const DB_NAME = 'ChapasProDB';
+  const DB_STORE = 'projectData';
+  let dbInstance = null;
+
+  function initDB() {
+    return new Promise((resolve) => {
+      const request = indexedDB.open(DB_NAME, 1);
+      request.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(DB_STORE)) {
+          db.createObjectStore(DB_STORE);
+        }
+      };
+      request.onsuccess = (e) => {
+        dbInstance = e.target.result;
+        resolve(dbInstance);
+      };
+      request.onerror = () => resolve(null);
+    });
+  }
+
+  let saveTimeout = null;
+  function scheduleAutoSave() {
+    if (!dbInstance) return;
+    saveIndicator.classList.add('saving');
+    saveIcon.textContent = '⏳';
+    saveText.textContent = 'Guardando...';
+
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(async () => {
+      try {
+        const serializableLibrary = library.map(item => ({
+          id: item.id,
+          name: item.name,
+          src: item.src
+        }));
+
+        const projectPayload = {
+          version: 2,
+          savedAt: Date.now(),
+          badgeSize: selBadgeSize.value,
+          fineCut: rngFineCut.value,
+          dpi: selDpi.value,
+          paper: selPaper.value,
+          orientation: paperOrientation,
+          layoutMode,
+          inspectorPreviewMode,
+          margin: rngMargin.value,
+          gap: rngGap.value,
+          defaultBorder: rngDefaultBorder.value,
+          showGuides: chkShowGuides.checked,
+          cropMarks: chkCropMarks.checked,
+          projectName: txtProjectName ? txtProjectName.value : 'Mis Chapas',
+          libCounter,
+          pageCounter,
+          activePageIndex,
+          selectedCellKey,
+          library: serializableLibrary,
+          pages
+        };
+
+        const tx = dbInstance.transaction(DB_STORE, 'readwrite');
+        const store = tx.objectStore(DB_STORE);
+        store.put(projectPayload, 'currentProject');
+
+        tx.oncomplete = () => {
+          saveIndicator.classList.remove('saving');
+          saveIcon.textContent = '✓';
+          saveText.textContent = 'Guardado';
+        };
+      } catch (err) {
+        console.warn('Error guardando en IndexedDB:', err);
+        saveIndicator.classList.remove('saving');
+        saveText.textContent = 'Guardado';
+      }
+    }, 600);
+  }
+
+  async function loadAutoSave() {
+    if (!dbInstance) return false;
+    return new Promise((resolve) => {
+      try {
+        const tx = dbInstance.transaction(DB_STORE, 'readonly');
+        const store = tx.objectStore(DB_STORE);
+        const req = store.get('currentProject');
+
+        req.onsuccess = async () => {
+          const data = req.result;
+          if (!data || !data.pages || !data.pages.length) {
+            resolve(false);
+            return;
+          }
+
+          if (data.badgeSize) selBadgeSize.value = data.badgeSize;
+          if (data.fineCut !== undefined) {
+            rngFineCut.value = data.fineCut;
+            const val = parseFloat(data.fineCut);
+            lblFineCut.textContent = `${val > 0 ? '+' : ''}${val} mm`;
+          }
+          if (data.dpi) selDpi.value = data.dpi;
+          if (data.paper) selPaper.value = data.paper;
+          if (data.orientation) {
+            paperOrientation = data.orientation;
+            groupOrientation.querySelectorAll('.btn-toggle').forEach(b => {
+              b.classList.toggle('active', b.dataset.orient === paperOrientation);
+            });
+          }
+          if (data.layoutMode) {
+            layoutMode = data.layoutMode;
+            groupLayoutMode.querySelectorAll('.btn-toggle').forEach(b => {
+              b.classList.toggle('active', b.dataset.layout === layoutMode);
+            });
+          }
+          if (data.inspectorPreviewMode) {
+            inspectorPreviewMode = data.inspectorPreviewMode;
+            [groupGlobalViewMode, groupPreviewMode].forEach(grp => {
+              if (!grp) return;
+              grp.querySelectorAll('.btn-toggle').forEach(b => {
+                b.classList.toggle('active', b.dataset.mode === inspectorPreviewMode);
+              });
+            });
+          }
+          if (data.margin) rngMargin.value = data.margin;
+          if (data.gap) rngGap.value = data.gap;
+          if (data.defaultBorder) rngDefaultBorder.value = data.defaultBorder;
+          if (data.showGuides !== undefined) chkShowGuides.checked = data.showGuides;
+          if (data.cropMarks !== undefined) chkCropMarks.checked = data.cropMarks;
+          if (data.projectName && txtProjectName) txtProjectName.value = data.projectName;
+
+          libCounter = data.libCounter || 1;
+          pageCounter = data.pageCounter || data.pages.length;
+          activePageIndex = Math.min(data.activePageIndex || 0, data.pages.length - 1);
+          selectedCellKey = data.selectedCellKey || '0_0';
+          pages = data.pages;
+
+          library = [];
+          if (data.library && data.library.length) {
+            const loadPromises = data.library.map(raw => {
+              return new Promise((resImg) => {
+                const img = new Image();
+                img.onload = () => {
+                  library.push({
+                    id: raw.id,
+                    name: raw.name,
+                    imgElement: img,
+                    src: raw.src
+                  });
+                  resImg();
+                };
+                img.onerror = () => resImg();
+                img.src = raw.src;
+              });
+            });
+            await Promise.all(loadPromises);
+          }
+
+          renderTray();
+          resolve(true);
+        };
+        req.onerror = () => resolve(false);
+      } catch (e) {
+        resolve(false);
+      }
+    });
+  }
+
+  // --- BOTÓN NUEVO PROYECTO ---
+  btnResetProject.addEventListener('click', () => {
+    if (confirm('¿Deseas iniciar un nuevo proyecto limpio? Se vaciarán las hojas y la biblioteca actual.')) {
+      library = [];
+      libCounter = 1;
+      activeImageId = null;
+      pages = [{ id: 1, name: 'Hoja 1', cells: {} }];
+      pageCounter = 1;
+      activePageIndex = 0;
+      selectedCellKey = '0_0';
+      renderTray();
+      redrawSheet();
+
+      if (dbInstance) {
+        const tx = dbInstance.transaction(DB_STORE, 'readwrite');
+        tx.objectStore(DB_STORE).delete('currentProject');
+      }
+      showToast('Proyecto reiniciado');
+    }
+  });
+
+  // --- EVENTOS DE CONFIGURACIÓN ---
+  [selBadgeSize, selDpi, selPaper, rngMargin, rngGap, chkShowGuides, chkCropMarks].forEach(el => {
+    el.addEventListener('input', () => {
+      lblMargin.textContent = `${rngMargin.value}mm`;
+      lblGap.textContent = `${rngGap.value}mm`;
+      updateTotalCutDisplay();
+      redrawSheet();
+    });
+  });
+
+  rngDefaultBorder.addEventListener('input', () => {
+    const valPct = parseFloat(rngDefaultBorder.value);
+    lblDefaultBorder.textContent = `${valPct}%`;
+    const borderRatio = valPct / 100;
+    const page = getActivePage();
+    Object.values(page.cells).forEach(c => {
+      if (c) c.border = borderRatio;
+    });
+    if (selectedCellKey && page.cells[selectedCellKey]) {
+      rngCellBorder.value = valPct;
+      lblCellBorder.textContent = `${valPct}%`;
+    }
+    redrawSheet();
+  });
+
+  // --- INICIALIZACIÓN ---
+  (async () => {
+    lblMargin.textContent = `${rngMargin.value}mm`;
+    lblGap.textContent = `${rngGap.value}mm`;
+    lblDefaultBorder.textContent = `${rngDefaultBorder.value}%`;
+    updateTotalCutDisplay();
+
+    await initDB();
+    const restored = await loadAutoSave();
+    if (restored) {
+      showToast('¡Proyecto previo restaurado automáticamente!');
+    }
+
+    if (txtProjectName) {
+      txtProjectName.addEventListener('input', scheduleAutoSave);
+    }
+
+    redrawSheet();
+    btnFitSheet.click();
+  })();
+
+  // --- PWA SERVICE WORKER & INSTALACIÓN DE ESCRITORIO ---
+  let deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    if (btnPwaInstall) {
+      btnPwaInstall.style.display = 'inline-flex';
+    }
+  });
+
+  if (btnPwaInstall) {
+    btnPwaInstall.addEventListener('click', async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          btnPwaInstall.style.display = 'none';
+          showToast('¡Chapas Pro instalado en tu PC!');
+        }
+        deferredPrompt = null;
+      } else {
+        alert('Para instalar esta app:\n\n1. En Chrome, Edge o Brave haz clic en el botón de Instalar (+) a la derecha de la barra de direcciones.\n2. O pulsa Menú (...) > "Instalar Generador de Chapas Pro".\n\n¡Se abrirá en su propia ventana y funcionará 100% sin internet!');
+      }
+    });
+  }
+
+  window.addEventListener('appinstalled', () => {
+    if (btnPwaInstall) btnPwaInstall.style.display = 'none';
+    showToast('¡Chapas Pro instalado correctamente!');
+  });
+
+  // Registro del Service Worker para funcionamiento 100% Offline
+  if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then((reg) => console.log('Chapas Pro SW activo en:', reg.scope))
+        .catch((err) => console.warn('Aviso Service Worker:', err));
+    });
+  }
+})();
+</script>
+</body>
+</html>
