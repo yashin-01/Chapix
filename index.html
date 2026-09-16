@@ -1070,7 +1070,7 @@
   @media print {
     @page {
       margin: 0;
-      size: auto;
+      size: var(--print-w, auto) var(--print-h, auto);
     }
     body > *:not(#printArea) {
       display: none !important;
@@ -1098,11 +1098,13 @@
       margin: 0 auto;
       padding: 0;
       box-sizing: border-box;
+      width: var(--print-w, 100%);
+      height: var(--print-h, auto);
     }
     .print-sheet-wrapper img {
       display: block;
-      width: 100%;
-      height: auto;
+      width: var(--print-w, 100%);
+      height: var(--print-h, auto);
     }
   }
 
@@ -1315,6 +1317,10 @@
       <span class="project-label">📁 Pedido:</span>
       <input type="text" id="txtProjectName" value="Mis Chapas" class="project-name-input" placeholder="Nombre trabajo">
     </div>
+
+    <button class="btn btn-secondary btn-sm" id="btnSyncOpen" title="Sincronizar este proyecto con otro dispositivo usando un código">
+      🔗 <span id="btnSyncLabel">Sincronizar</span>
+    </button>
 
     <button class="btn btn-pwa-install btn-sm" id="btnPwaInstall" style="display: none;" title="Instalar en tu PC para usar sin internet y desde el escritorio">
       📲 Instalar App
@@ -1685,9 +1691,168 @@
   </div>
 </div>
 
+<!-- MODAL DE SINCRONIZACIÓN -->
+<style>
+  .sync-modal-overlay, #syncModalOverlay, #printModalOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(8, 7, 14, 0.75);
+    backdrop-filter: blur(4px);
+    z-index: 500;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .sync-modal-overlay.open, #syncModalOverlay.open, #printModalOverlay.open { display: flex; }
+  .sync-modal-box {
+    background: var(--surface-1);
+    border: 1px solid var(--surface-border);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 420px;
+    padding: 22px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  }
+  .sync-modal-box h3 {
+    font-family: 'Archivo', sans-serif;
+    font-size: 16px;
+    margin-bottom: 4px;
+  }
+  .sync-modal-box p.sync-sub {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+    line-height: 1.5;
+  }
+  .sync-section {
+    background: var(--surface-2);
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+  .sync-section h4 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent-purple-light);
+    margin-bottom: 10px;
+  }
+  .sync-code-display {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 20px;
+    font-weight: 700;
+    color: #FFF;
+    background: var(--surface-3);
+    border-radius: 8px;
+    padding: 10px 12px;
+    text-align: center;
+    letter-spacing: 0.06em;
+    margin-bottom: 10px;
+    user-select: all;
+  }
+  .sync-row-buttons { display: flex; gap: 8px; }
+  .sync-row-buttons .btn { flex: 1; justify-content: center; }
+  #syncCodeInput {
+    text-transform: uppercase;
+    text-align: center;
+    letter-spacing: 0.08em;
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+  .sync-warning {
+    font-size: 11.5px;
+    color: var(--accent-amber);
+    line-height: 1.45;
+    margin-top: 6px;
+  }
+  #syncModalClose {
+    width: 100%;
+    justify-content: center;
+    margin-top: 4px;
+  }
+  .sync-status-line {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: center;
+    min-height: 16px;
+    margin-top: 8px;
+  }
+</style>
+<div id="syncModalOverlay">
+  <div class="sync-modal-box">
+    <h3>🔗 Sincronizar proyecto</h3>
+    <p class="sync-sub">Usá un código corto para pasar este proyecto (ajustes e imágenes) a otro dispositivo. No requiere cuenta ni contraseña.</p>
+
+    <div class="sync-section">
+      <h4>Tu código actual</h4>
+      <div class="sync-code-display" id="syncCurrentCodeDisplay">Sin código todavía</div>
+      <div class="sync-row-buttons">
+        <button class="btn btn-secondary btn-sm" id="btnSyncGenerate">✨ Generar código nuevo</button>
+        <button class="btn btn-outline-cyan btn-sm" id="btnSyncPush">☁️ Guardar en este código</button>
+      </div>
+    </div>
+
+    <div class="sync-section">
+      <h4>Traer proyecto de otro código</h4>
+      <input type="text" id="syncCodeInput" class="project-name-input" style="width:100%; background:var(--surface-3); border:1px solid var(--surface-border); border-radius:8px; padding:9px;" placeholder="XXXX-XXXX">
+      <button class="btn btn-primary btn-sm" id="btnSyncPull" style="width:100%; justify-content:center;">⬇️ Cargar este código (reemplaza tu proyecto actual)</button>
+      <p class="sync-warning">⚠️ Esto sobrescribe todo lo que tenés abierto ahora mismo en este dispositivo. No se puede deshacer.</p>
+    </div>
+
+    <div class="sync-status-line" id="syncStatusLine"></div>
+    <button class="btn btn-secondary btn-sm" id="syncModalClose">Cerrar</button>
+  </div>
+</div>
+
+<!-- Modal Guía de Impresión Exacta al 100% -->
+<div class="sync-modal-overlay" id="printModalOverlay">
+  <div class="sync-modal-box" style="max-width: 440px;">
+    <h3 style="display: flex; align-items: center; gap: 8px;">
+      <span>🖨️</span> Ajustes de Impresión al 100%
+    </h3>
+    <p class="sync-sub" style="margin-bottom: 12px;">
+      Para que tus chapas salgan exactamente a los <b><span id="printBadgeTargetMM">70</span> mm</b> elegidos:
+    </p>
+
+    <div style="background: var(--surface-2); border: 1px solid var(--surface-border); border-radius: 10px; padding: 12px; margin-bottom: 14px; font-size: 12.5px; line-height: 1.6;">
+      <div style="margin-bottom: 8px; display: flex; align-items: flex-start; gap: 8px;">
+        <span style="font-size: 15px;">1️⃣</span>
+        <div><b>Márgenes:</b> Selecciona <u>"Ninguno"</u> (o Mínimos). <i>(No usar "Predeterminado")</i>.</div>
+      </div>
+      <div style="margin-bottom: 8px; display: flex; align-items: flex-start; gap: 8px;">
+        <span style="font-size: 15px;">2️⃣</span>
+        <div><b>Escala:</b> Selecciona <u>"100%"</u> o <u>"Tamaño Real"</u>. <i>(Nunca "Ajustar al área imprimible")</i>.</div>
+      </div>
+      <div style="display: flex; align-items: flex-start; gap: 8px;">
+        <span style="font-size: 15px;">3️⃣</span>
+        <div><b>Papel:</b> Confirma que en la impresora esté en <u><span id="printPaperTargetName">A4</span></u>.</div>
+      </div>
+    </div>
+
+    <div class="sync-row-buttons">
+      <button class="btn btn-secondary btn-sm" id="btnCancelPrint">Cancelar</button>
+      <button class="btn btn-primary btn-sm" id="btnConfirmPrint">Continuar a Imprimir</button>
+    </div>
+  </div>
+</div>
+
+<!-- SDK de Supabase (sincronización entre dispositivos) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
 <!-- SCRIPT LOGIC -->
 <script>
 (() => {
+  // --- CONFIGURACIÓN DE SINCRONIZACIÓN (SUPABASE) ---
+  // La "anon key" es pública por diseño (protegida por las políticas RLS en Supabase, no por estar oculta).
+  const SUPABASE_URL = 'https://mshsowaeukiejpryjibk.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1zaHNvd2FldWtpZWpwcnlqaWJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1MDY2MTAsImV4cCI6MjEwNTA4MjYxMH0.kUZy8v-WQss7-I4Ir9vcKs-aV0aOws1aOy0Ou3YdKwk';
+  const SUPABASE_TABLE = 'proyectos';
+  const SUPABASE_BUCKET = 'imagenes-chapix';
+  const syncClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
   // --- PRESETS Y MEDIDAS EXACTAS DE MATRICES / SACABOCADOS ---
   const BADGE_PRESETS = {
     25: { name: '25 mm (1")', sizeMM: 25, cutMM: 35, bleedMM: 28, safeMM: 23 },
@@ -1725,6 +1890,12 @@
   const lblDefaultBorder = document.getElementById('lblDefaultBorder');
   const chkShowGuides = document.getElementById('chkShowGuides');
   const chkCropMarks = document.getElementById('chkCropMarks');
+
+  const printModalOverlay = document.getElementById('printModalOverlay');
+  const printBadgeTargetMM = document.getElementById('printBadgeTargetMM');
+  const printPaperTargetName = document.getElementById('printPaperTargetName');
+  const btnCancelPrint = document.getElementById('btnCancelPrint');
+  const btnConfirmPrint = document.getElementById('btnConfirmPrint');
 
   const statBadgeSize = document.getElementById('statBadgeSize');
   const statPaperName = document.getElementById('statPaperName');
@@ -2868,14 +3039,30 @@
       fileArr.forEach(file => {
         const reader = new FileReader();
         reader.onload = (e) => {
+          const src = e.target.result;
+          // Evitar duplicados: si ya existe una imagen idéntica en la biblioteca, no la duplicamos
+          const existing = library.find(item => item.src === src || (item.name === file.name && item.size === file.size));
+          if (existing) {
+            activeImageId = existing.id;
+            loaded++;
+            if (loaded === fileArr.length) {
+              renderTray();
+              resolve(newlyAdded);
+            }
+            return;
+          }
+
           const imgEl = new Image();
           imgEl.onload = () => {
             const id = `img_${libCounter++}`;
             const item = {
               id,
               name: file.name,
+              size: file.size,
               imgElement: imgEl,
-              src: e.target.result
+              src: src,
+              remoteUrl: null,
+              uploadedCode: null
             };
             library.push(item);
             newlyAdded.push(item);
@@ -2887,7 +3074,7 @@
               resolve(newlyAdded);
             }
           };
-          imgEl.src = e.target.result;
+          imgEl.src = src;
         };
         reader.readAsDataURL(file);
       });
@@ -3417,14 +3604,12 @@
     showToast('Todas las hojas han sido descargadas');
   });
 
-  // IMPRESIÓN DIRECTA EXACTA A TAMAÑO 100% REAL
-  btnDirectPrint.addEventListener('click', () => {
+  function triggerPrint() {
     const page = getActivePage();
-    const hasAny = Object.values(page.cells).some(c => c && c.imgId);
-    if (!hasAny) {
-      showToast('La hoja actual no tiene ninguna imagen para imprimir');
-      return;
-    }
+    let [pw, ph] = PAPER_MM[selPaper.value] || PAPER_MM.a4;
+    if (paperOrientation === 'landscape') { [pw, ph] = [ph, pw]; }
+    document.documentElement.style.setProperty('--print-w', `${pw}mm`);
+    document.documentElement.style.setProperty('--print-h', `${ph}mm`);
 
     showToast('Preparando vista de impresión al 100%...');
     const outCanvas = generateHighResCanvas(page, 300);
@@ -3442,7 +3627,49 @@
         printArea.innerHTML = '';
       }, 1000);
     }, 250);
+  }
+
+  // IMPRESIÓN DIRECTA EXACTA A TAMAÑO 100% REAL
+  btnDirectPrint.addEventListener('click', () => {
+    const page = getActivePage();
+    const hasAny = Object.values(page.cells).some(c => c && c.imgId);
+    if (!hasAny) {
+      showToast('La hoja actual no tiene ninguna imagen para imprimir');
+      return;
+    }
+
+    const specs = getBadgeSpecs(parseFloat(selBadgeSize.value), 300);
+    if (printBadgeTargetMM) printBadgeTargetMM.textContent = `${specs.cutMM}`;
+    if (printPaperTargetName) {
+      const paperText = selPaper.options[selPaper.selectedIndex].text.split('—')[0].trim();
+      printPaperTargetName.textContent = paperText;
+    }
+
+    if (printModalOverlay) {
+      printModalOverlay.classList.add('open');
+    } else {
+      triggerPrint();
+    }
   });
+
+  if (btnCancelPrint) {
+    btnCancelPrint.addEventListener('click', () => {
+      if (printModalOverlay) printModalOverlay.classList.remove('open');
+    });
+  }
+
+  if (btnConfirmPrint) {
+    btnConfirmPrint.addEventListener('click', () => {
+      if (printModalOverlay) printModalOverlay.classList.remove('open');
+      triggerPrint();
+    });
+  }
+
+  if (printModalOverlay) {
+    printModalOverlay.addEventListener('click', (e) => {
+      if (e.target === printModalOverlay) printModalOverlay.classList.remove('open');
+    });
+  }
 
   // --- TOGGLE DE ORIENTACIÓN ---
   groupOrientation.querySelectorAll('.btn-toggle').forEach(btn => {
@@ -3593,7 +3820,10 @@
         const serializableLibrary = library.map(item => ({
           id: item.id,
           name: item.name,
-          src: item.src
+          size: item.size || null,
+          src: item.src,
+          remoteUrl: item.remoteUrl || null,
+          uploadedCode: item.uploadedCode || null
         }));
 
         const projectPayload = {
@@ -3637,6 +3867,87 @@
     }, 600);
   }
 
+  // --- Restaura el estado de la app a partir de un objeto de proyecto ---
+  // (compartido entre el autoguardado local y la sincronización remota)
+  async function applyProjectData(data) {
+    if (!data || !data.pages || !data.pages.length) return false;
+
+    if (data.badgeSize) selBadgeSize.value = data.badgeSize;
+    if (data.fineCut !== undefined) {
+      rngFineCut.value = data.fineCut;
+      const val = parseFloat(data.fineCut);
+      lblFineCut.textContent = `${val > 0 ? '+' : ''}${val} mm`;
+    }
+    if (data.dpi) selDpi.value = data.dpi;
+    if (data.paper) selPaper.value = data.paper;
+    if (data.orientation) {
+      paperOrientation = data.orientation;
+      groupOrientation.querySelectorAll('.btn-toggle').forEach(b => {
+        b.classList.toggle('active', b.dataset.orient === paperOrientation);
+      });
+    }
+    if (data.layoutMode) {
+      layoutMode = data.layoutMode;
+      groupLayoutMode.querySelectorAll('.btn-toggle').forEach(b => {
+        b.classList.toggle('active', b.dataset.layout === layoutMode);
+      });
+    }
+    if (data.inspectorPreviewMode) {
+      inspectorPreviewMode = data.inspectorPreviewMode;
+      [groupGlobalViewMode, groupPreviewMode].forEach(grp => {
+        if (!grp) return;
+        grp.querySelectorAll('.btn-toggle').forEach(b => {
+          b.classList.toggle('active', b.dataset.mode === inspectorPreviewMode);
+        });
+      });
+    }
+    if (data.margin) rngMargin.value = data.margin;
+    if (data.gap) rngGap.value = data.gap;
+    if (data.defaultBorder) rngDefaultBorder.value = data.defaultBorder;
+    if (data.showGuides !== undefined) chkShowGuides.checked = data.showGuides;
+    if (data.cropMarks !== undefined) chkCropMarks.checked = data.cropMarks;
+    if (data.projectName && txtProjectName) txtProjectName.value = data.projectName;
+
+    // Reflejar los labels numéricos (margen/gap/borde) que no se actualizan solos
+    lblMargin.textContent = `${rngMargin.value}mm`;
+    lblGap.textContent = `${rngGap.value}mm`;
+    lblDefaultBorder.textContent = `${rngDefaultBorder.value}%`;
+
+    libCounter = data.libCounter || 1;
+    pageCounter = data.pageCounter || data.pages.length;
+    activePageIndex = Math.min(data.activePageIndex || 0, data.pages.length - 1);
+    selectedCellKey = data.selectedCellKey || '0_0';
+    pages = data.pages;
+
+    library = [];
+    if (data.library && data.library.length) {
+      const loadPromises = data.library.map(raw => {
+        return new Promise((resImg) => {
+          const img = new Image();
+          img.onload = () => {
+            library.push({
+              id: raw.id,
+              name: raw.name,
+              size: raw.size || null,
+              imgElement: img,
+              src: raw.src,
+              remoteUrl: raw.remoteUrl || null,
+              uploadedCode: raw.uploadedCode || null
+            });
+            resImg();
+          };
+          img.onerror = () => resImg();
+          img.src = raw.src;
+        });
+      });
+      await Promise.all(loadPromises);
+    }
+
+    renderTray();
+    updateTotalCutDisplay();
+    return true;
+  }
+
   async function loadAutoSave() {
     if (!dbInstance) return false;
     return new Promise((resolve) => {
@@ -3646,77 +3957,8 @@
         const req = store.get('currentProject');
 
         req.onsuccess = async () => {
-          const data = req.result;
-          if (!data || !data.pages || !data.pages.length) {
-            resolve(false);
-            return;
-          }
-
-          if (data.badgeSize) selBadgeSize.value = data.badgeSize;
-          if (data.fineCut !== undefined) {
-            rngFineCut.value = data.fineCut;
-            const val = parseFloat(data.fineCut);
-            lblFineCut.textContent = `${val > 0 ? '+' : ''}${val} mm`;
-          }
-          if (data.dpi) selDpi.value = data.dpi;
-          if (data.paper) selPaper.value = data.paper;
-          if (data.orientation) {
-            paperOrientation = data.orientation;
-            groupOrientation.querySelectorAll('.btn-toggle').forEach(b => {
-              b.classList.toggle('active', b.dataset.orient === paperOrientation);
-            });
-          }
-          if (data.layoutMode) {
-            layoutMode = data.layoutMode;
-            groupLayoutMode.querySelectorAll('.btn-toggle').forEach(b => {
-              b.classList.toggle('active', b.dataset.layout === layoutMode);
-            });
-          }
-          if (data.inspectorPreviewMode) {
-            inspectorPreviewMode = data.inspectorPreviewMode;
-            [groupGlobalViewMode, groupPreviewMode].forEach(grp => {
-              if (!grp) return;
-              grp.querySelectorAll('.btn-toggle').forEach(b => {
-                b.classList.toggle('active', b.dataset.mode === inspectorPreviewMode);
-              });
-            });
-          }
-          if (data.margin) rngMargin.value = data.margin;
-          if (data.gap) rngGap.value = data.gap;
-          if (data.defaultBorder) rngDefaultBorder.value = data.defaultBorder;
-          if (data.showGuides !== undefined) chkShowGuides.checked = data.showGuides;
-          if (data.cropMarks !== undefined) chkCropMarks.checked = data.cropMarks;
-          if (data.projectName && txtProjectName) txtProjectName.value = data.projectName;
-
-          libCounter = data.libCounter || 1;
-          pageCounter = data.pageCounter || data.pages.length;
-          activePageIndex = Math.min(data.activePageIndex || 0, data.pages.length - 1);
-          selectedCellKey = data.selectedCellKey || '0_0';
-          pages = data.pages;
-
-          library = [];
-          if (data.library && data.library.length) {
-            const loadPromises = data.library.map(raw => {
-              return new Promise((resImg) => {
-                const img = new Image();
-                img.onload = () => {
-                  library.push({
-                    id: raw.id,
-                    name: raw.name,
-                    imgElement: img,
-                    src: raw.src
-                  });
-                  resImg();
-                };
-                img.onerror = () => resImg();
-                img.src = raw.src;
-              });
-            });
-            await Promise.all(loadPromises);
-          }
-
-          renderTray();
-          resolve(true);
+          const ok = await applyProjectData(req.result);
+          resolve(ok);
         };
         req.onerror = () => resolve(false);
       } catch (e) {
@@ -3724,6 +3966,225 @@
       }
     });
   }
+
+  // --- SINCRONIZACIÓN ENTRE DISPOSITIVOS (SUPABASE) ---
+  const SYNC_LS_KEY = 'chapixSyncCode';
+  const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // sin 0/O/1/I/L para evitar confusión al anotarlo a mano
+
+  const syncModalOverlay = document.getElementById('syncModalOverlay');
+  const btnSyncOpen = document.getElementById('btnSyncOpen');
+  const btnSyncLabel = document.getElementById('btnSyncLabel');
+  const syncModalClose = document.getElementById('syncModalClose');
+  const syncCurrentCodeDisplay = document.getElementById('syncCurrentCodeDisplay');
+  const btnSyncGenerate = document.getElementById('btnSyncGenerate');
+  const btnSyncPush = document.getElementById('btnSyncPush');
+  const btnSyncPull = document.getElementById('btnSyncPull');
+  const syncCodeInput = document.getElementById('syncCodeInput');
+  const syncStatusLine = document.getElementById('syncStatusLine');
+
+  function generateSyncCode() {
+    let raw = '';
+    for (let i = 0; i < 8; i++) raw += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+    return raw.slice(0, 4) + '-' + raw.slice(4);
+  }
+
+  function getSyncCode() {
+    return localStorage.getItem(SYNC_LS_KEY) || null;
+  }
+
+  function setSyncCode(code) {
+    localStorage.setItem(SYNC_LS_KEY, code);
+    refreshSyncUI();
+  }
+
+  function refreshSyncUI() {
+    const code = getSyncCode();
+    syncCurrentCodeDisplay.textContent = code || 'Sin código todavía';
+    btnSyncLabel.textContent = code ? code : 'Sincronizar';
+  }
+
+  function setSyncStatus(msg) {
+    syncStatusLine.textContent = msg || '';
+  }
+
+  function dataUrlToBlob(dataUrl) {
+    return fetch(dataUrl).then(r => r.blob());
+  }
+
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  // Sube el proyecto actual (config + imágenes) bajo un código dado
+  async function syncPush(code) {
+    setSyncStatus('Verificando imágenes...');
+
+    // 1) Subir imágenes a Storage (sin duplicar ni re-subir las que ya están en la nube)
+    const remoteLibrary = [];
+    for (let i = 0; i < library.length; i++) {
+      const item = library[i];
+      const path = `${code}/${item.id}.png`;
+
+      // Si ya fue subida bajo este mismo código, reutilizamos su URL directamente sin re-subir bytes
+      if (item.uploadedCode === code && item.remoteUrl) {
+        remoteLibrary.push({ id: item.id, name: item.name, url: item.remoteUrl });
+        continue;
+      }
+
+      setSyncStatus(`Subiendo imágenes... ${i + 1}/${library.length}`);
+      const blob = await dataUrlToBlob(item.src);
+      const { error: upErr } = await syncClient.storage.from(SUPABASE_BUCKET).upload(path, blob, {
+        upsert: true,
+        contentType: blob.type || 'image/png'
+      });
+      if (upErr) throw new Error('Error subiendo imagen: ' + upErr.message);
+      const { data: urlData } = syncClient.storage.from(SUPABASE_BUCKET).getPublicUrl(path);
+      item.remoteUrl = urlData.publicUrl;
+      item.uploadedCode = code;
+      remoteLibrary.push({ id: item.id, name: item.name, url: urlData.publicUrl });
+    }
+
+    setSyncStatus('Guardando configuración...');
+
+    // 2) Armar el payload de configuración (igual que el autoguardado local, pero con library remota)
+    const configPayload = {
+      version: 2,
+      savedAt: Date.now(),
+      badgeSize: selBadgeSize.value,
+      fineCut: rngFineCut.value,
+      dpi: selDpi.value,
+      paper: selPaper.value,
+      orientation: paperOrientation,
+      layoutMode,
+      inspectorPreviewMode,
+      margin: rngMargin.value,
+      gap: rngGap.value,
+      defaultBorder: rngDefaultBorder.value,
+      showGuides: chkShowGuides.checked,
+      cropMarks: chkCropMarks.checked,
+      projectName: txtProjectName ? txtProjectName.value : 'Mis Chapas',
+      libCounter,
+      pageCounter,
+      activePageIndex,
+      selectedCellKey,
+      library: remoteLibrary,
+      pages
+    };
+
+    // 3) Guardar/actualizar la fila en Supabase
+    const { error: dbErr } = await syncClient
+      .from(SUPABASE_TABLE)
+      .upsert({ codigo: code, config: configPayload, actualizado_en: new Date().toISOString() });
+    if (dbErr) throw new Error('Error guardando en la base: ' + dbErr.message);
+  }
+
+  // Descarga un proyecto remoto por código y reemplaza el proyecto local actual
+  async function syncPull(code) {
+    setSyncStatus('Buscando código...');
+    const { data: row, error } = await syncClient
+      .from(SUPABASE_TABLE)
+      .select('config')
+      .eq('codigo', code)
+      .maybeSingle();
+
+    if (error) throw new Error('Error consultando la base: ' + error.message);
+    if (!row) throw new Error('No existe ningún proyecto guardado con ese código.');
+
+    const remoteConfig = row.config;
+    setSyncStatus('Descargando imágenes...');
+
+    // Convertir cada imagen remota (url) de vuelta a base64 para encajar con el formato local (IndexedDB)
+    const localLibrary = [];
+    const remoteLib = remoteConfig.library || [];
+    for (let i = 0; i < remoteLib.length; i++) {
+      const raw = remoteLib[i];
+      setSyncStatus(`Descargando imágenes... ${i + 1}/${remoteLib.length}`);
+      const resp = await fetch(raw.url);
+      if (!resp.ok) continue;
+      const blob = await resp.blob();
+      const dataUrl = await blobToDataUrl(blob);
+      localLibrary.push({
+        id: raw.id,
+        name: raw.name,
+        src: dataUrl,
+        remoteUrl: raw.url,
+        uploadedCode: code
+      });
+    }
+
+    remoteConfig.library = localLibrary;
+
+    setSyncStatus('Aplicando proyecto...');
+    await applyProjectData(remoteConfig);
+    redrawSheet();
+    scheduleAutoSave(); // reflejar también en el autoguardado local (IndexedDB) de este dispositivo
+  }
+
+  btnSyncOpen.addEventListener('click', () => {
+    refreshSyncUI();
+    setSyncStatus('');
+    syncModalOverlay.classList.add('open');
+  });
+  syncModalClose.addEventListener('click', () => syncModalOverlay.classList.remove('open'));
+  syncModalOverlay.addEventListener('click', (e) => {
+    if (e.target === syncModalOverlay) syncModalOverlay.classList.remove('open');
+  });
+
+  btnSyncGenerate.addEventListener('click', () => {
+    const newCode = generateSyncCode();
+    setSyncCode(newCode);
+    setSyncStatus('Código generado. Tocá "Guardar en este código" para subir tu proyecto.');
+  });
+
+  btnSyncPush.addEventListener('click', async () => {
+    let code = getSyncCode();
+    if (!code) {
+      code = generateSyncCode();
+      setSyncCode(code);
+    }
+    btnSyncPush.disabled = true;
+    try {
+      await syncPush(code);
+      setSyncStatus('✅ Proyecto guardado en el código ' + code);
+      showToast('Proyecto sincronizado: ' + code);
+    } catch (err) {
+      console.error(err);
+      setSyncStatus('❌ ' + err.message);
+    } finally {
+      btnSyncPush.disabled = false;
+    }
+  });
+
+  btnSyncPull.addEventListener('click', async () => {
+    const inputCode = syncCodeInput.value.trim().toUpperCase();
+    if (!inputCode) {
+      setSyncStatus('Escribí un código primero.');
+      return;
+    }
+    if (!confirm('Esto va a reemplazar el proyecto que tenés abierto ahora mismo en este dispositivo. ¿Continuar?')) {
+      return;
+    }
+    btnSyncPull.disabled = true;
+    try {
+      await syncPull(inputCode);
+      setSyncCode(inputCode);
+      setSyncStatus('✅ Proyecto cargado desde ' + inputCode);
+      showToast('Proyecto sincronizado desde ' + inputCode);
+      syncModalOverlay.classList.remove('open');
+    } catch (err) {
+      console.error(err);
+      setSyncStatus('❌ ' + err.message);
+    } finally {
+      btnSyncPull.disabled = false;
+    }
+  });
+
+  refreshSyncUI();
 
   // --- BOTÓN NUEVO PROYECTO ---
   btnResetProject.addEventListener('click', () => {
@@ -3748,6 +4209,7 @@
 
   // --- EVENTOS DE CONFIGURACIÓN ---
   [selBadgeSize, selDpi, selPaper, rngMargin, rngGap, chkShowGuides, chkCropMarks].forEach(el => {
+    if (!el) return;
     el.addEventListener('input', () => {
       lblMargin.textContent = `${rngMargin.value}mm`;
       lblGap.textContent = `${rngGap.value}mm`;
