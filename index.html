@@ -3887,6 +3887,13 @@
             if (g.totalCapacity > maxFound) {
               maxFound = g.totalCapacity;
               bestConfig = { orientation: ori, layoutMode: lay, margin: mar, gap: gp, capacity: g.totalCapacity };
+            } else if (g.totalCapacity === maxFound && bestConfig) {
+              // Ante misma capacidad, preferir un espacio cómodo para tijera (2-3mm) y margen seguro (3-4mm)
+              const curScore = Math.min(bestConfig.gap, 3) * 10 - Math.abs(bestConfig.margin - 3.5);
+              const newScore = Math.min(gp, 3) * 10 - Math.abs(mar - 3.5);
+              if (newScore > curScore) {
+                bestConfig = { orientation: ori, layoutMode: lay, margin: mar, gap: gp, capacity: g.totalCapacity };
+              }
             }
           }
         }
