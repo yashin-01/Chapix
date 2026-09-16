@@ -1069,42 +1069,43 @@
   }
   @media print {
     @page {
-      margin: 0;
-      size: var(--print-w, auto) var(--print-h, auto);
+      margin: 0mm;
     }
     body > *:not(#printArea) {
       display: none !important;
     }
     body, html {
       background: #FFF !important;
-      overflow: visible !important;
-      height: auto !important;
-      max-height: none !important;
+      overflow: hidden !important;
+      margin: 0 !important;
+      padding: 0 !important;
     }
     #printArea {
       display: block !important;
-      position: static !important;
-      width: 100% !important;
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
       background: #FFF !important;
       margin: 0 !important;
       padding: 0 !important;
     }
     .print-sheet-wrapper {
-      page-break-after: always;
-      page-break-inside: avoid;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      page-break-after: avoid !important;
+      break-after: avoid !important;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin: 0 auto;
-      padding: 0;
+      margin: 0 !important;
+      padding: 0 !important;
       box-sizing: border-box;
-      width: var(--print-w, 100%);
-      height: var(--print-h, auto);
+      overflow: hidden !important;
     }
     .print-sheet-wrapper img {
-      display: block;
-      width: var(--print-w, 100%);
-      height: var(--print-h, auto);
+      display: block !important;
+      margin: 0 !important;
+      padding: 0 !important;
     }
   }
 
@@ -3608,8 +3609,30 @@
     const page = getActivePage();
     let [pw, ph] = PAPER_MM[selPaper.value] || PAPER_MM.a4;
     if (paperOrientation === 'landscape') { [pw, ph] = [ph, pw]; }
-    document.documentElement.style.setProperty('--print-w', `${pw}mm`);
-    document.documentElement.style.setProperty('--print-h', `${ph}mm`);
+
+    // Inyectar tamaño físico y orientación exacta para Chrome/Edge (evita que el navegador use portrait por defecto)
+    let dynStyle = document.getElementById('dynamicPrintPageStyle');
+    if (!dynStyle) {
+      dynStyle = document.createElement('style');
+      dynStyle.id = 'dynamicPrintPageStyle';
+      document.head.appendChild(dynStyle);
+    }
+    dynStyle.textContent = `
+      @page {
+        size: ${pw}mm ${ph}mm;
+        margin: 0mm;
+      }
+      @media print {
+        html, body, #printArea, .print-sheet-wrapper {
+          width: ${pw}mm !important;
+          height: ${ph}mm !important;
+        }
+        .print-sheet-wrapper img {
+          width: ${pw}mm !important;
+          height: ${ph}mm !important;
+        }
+      }
+    `;
 
     showToast('Preparando vista de impresión al 100%...');
     const outCanvas = generateHighResCanvas(page, 300);
