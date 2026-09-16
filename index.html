@@ -2146,8 +2146,8 @@
 
     // MODO SIMULACIÓN CHAPA REAL 3D (PRENSADA)
     if (isReal3D) {
-      // Frente visible de la chapa terminado
-      const visibleRatio = specs.safeMM / specs.cutMM;
+      // Frente visible terminado de la chapa (diámetro real de la máquina, ej: 58 mm)
+      const visibleRatio = specs.sizeMM / specs.cutMM;
       const frontRadius = radius * visibleRatio;
       const frontImgRadius = frontRadius * Math.max(0.1, (1 - borderPct));
 
@@ -2162,7 +2162,7 @@
       targetCtx.fill();
       targetCtx.restore();
 
-      // Recorte de imagen dentro del frontal visible (respetando el borde blanco)
+      // Recorte de imagen dentro del frontal visible (respetando el borde blanco si lo hubiera)
       targetCtx.save();
       targetCtx.beginPath();
       targetCtx.arc(cx, cy, frontImgRadius, 0, Math.PI * 2);
@@ -2171,7 +2171,8 @@
       const imgItem = cellData && cellData.imgId ? getImageById(cellData.imgId) : null;
       if (imgItem && imgItem.imgElement) {
         const image = imgItem.imgElement;
-        const baseScale = Math.max((frontImgRadius * 2) / image.width, (frontImgRadius * 2) / image.height);
+        // Misma escala base que en la hoja técnica e impresión para que la imagen NUNCA se corra ni se desfase
+        const baseScale = Math.max(innerDiameter / image.width, innerDiameter / image.height);
         const zoom = cellData.zoom || 1.0;
         const scale = baseScale * zoom;
         const drawW = image.width * scale;
