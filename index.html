@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Generador de Chapas Pro — Creador de Plantillas e Impresión</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#7C3AED">
@@ -2206,15 +2209,19 @@
         const offX = (cellData.offX || 0) * diameterPx;
         const offY = (cellData.offY || 0) * diameterPx;
 
+        targetCtx.save();
         targetCtx.translate(cx + offX, cy + offY);
         if (cellData.rotation) targetCtx.rotate((cellData.rotation * Math.PI) / 180);
         targetCtx.drawImage(image, -drawW / 2, -drawH / 2, drawW, drawH);
+        targetCtx.restore();
       } else {
         targetCtx.fillStyle = '#E2E8F0';
         targetCtx.fillRect(cx - frontRadius, cy - frontRadius, frontRadius * 2, frontRadius * 2);
       }
+      targetCtx.restore();
 
-      // Brillo esférico de domo de plástico / Mylar
+      // Brillo esférico de domo de plástico / Mylar (fijo en la posición de la chapa, independiente del movimiento de la imagen)
+      targetCtx.save();
       const glossGrad = targetCtx.createRadialGradient(
         cx - frontRadius * 0.35, cy - frontRadius * 0.4, frontRadius * 0.05,
         cx, cy, frontRadius
@@ -2234,6 +2241,17 @@
       targetCtx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
       targetCtx.stroke();
       targetCtx.restore();
+
+      // Aro de selección en modo 3D
+      if (isSelected && !isExport) {
+        targetCtx.save();
+        targetCtx.beginPath();
+        targetCtx.arc(cx, cy, frontRadius + 3, 0, Math.PI * 2);
+        targetCtx.lineWidth = 3;
+        targetCtx.strokeStyle = '#F43F5E';
+        targetCtx.stroke();
+        targetCtx.restore();
+      }
 
       targetCtx.restore();
       return;
@@ -4417,12 +4435,40 @@
     showToast('¡Chapas Pro instalado correctamente!');
   });
 
-  // Registro del Service Worker para funcionamiento 100% Offline
+  // Registro del Service Worker con actualización automática instantánea
   if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('./sw.js')
-        .then((reg) => console.log('Chapas Pro SW activo en:', reg.scope))
+        .then((reg) => {
+          console.log('Chapas Pro SW activo en:', reg.scope);
+          // Forzar verificación de nueva versión en cada carga
+          reg.update().catch(() => {});
+
+          // Detectar si se está instalando una versión más reciente en segundo plano
+          reg.addEventListener('updatefound', () => {
+            const newWorker = reg.installing;
+            if (newWorker) {
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  showToast('¡Nueva versión disponible! Actualizando...', 2000);
+                  setTimeout(() => {
+                    window.location.reload();
+                  }, 1000);
+                }
+              });
+            }
+          });
+        })
         .catch((err) => console.warn('Aviso Service Worker:', err));
+
+      // Si el controlador cambia (la nueva versión tomó el control), recargar sin necesidad de Ctrl+F5
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      });
     });
   }
 })();
