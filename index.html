@@ -1857,7 +1857,7 @@
       </div>
       <div style="display: flex; align-items: flex-start; gap: 8px;">
         <span style="font-size: 15px;">3️⃣</span>
-        <div><b>Papel:</b> Confirma que en la impresora esté en <u><span id="printPaperTargetName">A4</span></u>.</div>
+        <div><b>Papel y Orientación:</b> Confirma que esté en <u><span id="printPaperTargetName">A4</span></u> y <u><span id="printOrientationTargetName">Horizontal</span></u>.</div>
       </div>
     </div>
 
@@ -3763,6 +3763,10 @@
       const paperText = selPaper.options[selPaper.selectedIndex].text.split('—')[0].trim();
       printPaperTargetName.textContent = paperText;
     }
+    const printOrientationTargetName = document.getElementById('printOrientationTargetName');
+    if (printOrientationTargetName) {
+      printOrientationTargetName.textContent = paperOrientation === 'landscape' ? 'Horizontal' : 'Vertical';
+    }
 
     const activeP = getActivePage();
     const activeHasImages = Object.values(activeP.cells).some(c => c && c.imgId);
@@ -3850,11 +3854,18 @@
     let bestConfig = null;
     let maxFound = -1;
 
-    const orientations = ['portrait', 'landscape'];
+    // Probar primero la orientación actual para respetarla si hay empate de capacidad
+    const orientations = paperOrientation === 'landscape' 
+      ? ['landscape', 'portrait'] 
+      : ['portrait', 'landscape'];
     const layouts = ['staggered', 'grid'];
-    // Márgenes optimizados de imprenta: 5mm de margen y 2mm de separación
-    const margins = [5, 4, 6, 8, 10];
-    const gaps = [2, 1.5, 3, 4];
+    // Incluir márgenes y espacios reducidos para exprimir la capacidad máxima real
+    const margins = [2, 3, 4, 5, 6, 8];
+    const gaps = [0, 1, 1.5, 2, 3, 4];
+
+    let maxInCurrent = 0;
+    let maxInOther = 0;
+    const otherOri = paperOrientation === 'landscape' ? 'portrait' : 'landscape';
 
     for (const ori of orientations) {
       for (const lay of layouts) {
@@ -3868,6 +3879,11 @@
               margin: mar,
               gap: gp
             });
+            if (ori === paperOrientation) {
+              if (g.totalCapacity > maxInCurrent) maxInCurrent = g.totalCapacity;
+            } else {
+              if (g.totalCapacity > maxInOther) maxInOther = g.totalCapacity;
+            }
             if (g.totalCapacity > maxFound) {
               maxFound = g.totalCapacity;
               bestConfig = { orientation: ori, layoutMode: lay, margin: mar, gap: gp, capacity: g.totalCapacity };
@@ -3896,7 +3912,14 @@
       redrawSheet();
       const oriText = paperOrientation === 'portrait' ? 'Vertical' : 'Horizontal';
       const layText = layoutMode === 'staggered' ? 'Tresbolillo' : 'Cuadrícula';
-      showToast(`⚡ ¡Aprovechamiento al máximo! Ahora caben ${bestConfig.capacity} chapas (${oriText}, ${layText})`);
+      const otherOriText = otherOri === 'portrait' ? 'Vertical' : 'Horizontal';
+
+      let extraInfo = '';
+      if (maxInOther < bestConfig.capacity) {
+        extraInfo = ` (${bestConfig.capacity} en ${oriText} vs ${maxInOther} en ${otherOriText})`;
+      }
+
+      showToast(`⚡ ¡Capacidad máxima: ${bestConfig.capacity} chapas en ${oriText} [${layText}]!${extraInfo}`);
     }
   });
 

@@ -1,5 +1,5 @@
 // Service Worker para Generador de Chapas Pro (PWA Offline con Actualización Automática)
-const CACHE_NAME = 'chapas-pro-v4';
+const CACHE_NAME = 'chapas-pro-v6';
 
 const PRECACHE_ASSETS = [
   './',
