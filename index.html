@@ -1076,36 +1076,40 @@
     }
     body, html {
       background: #FFF !important;
-      overflow: hidden !important;
+      overflow: visible !important;
       margin: 0 !important;
       padding: 0 !important;
+      height: auto !important;
     }
     #printArea {
       display: block !important;
-      position: absolute !important;
-      top: 0 !important;
-      left: 0 !important;
+      position: static !important;
       background: #FFF !important;
       margin: 0 !important;
       padding: 0 !important;
+      width: 100% !important;
+      height: auto !important;
     }
     .print-sheet-wrapper {
       page-break-inside: avoid !important;
       break-inside: avoid !important;
-      page-break-after: avoid !important;
-      break-after: avoid !important;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      page-break-after: always !important;
+      break-after: page !important;
+      display: block !important;
       margin: 0 !important;
       padding: 0 !important;
-      box-sizing: border-box;
+      box-sizing: border-box !important;
       overflow: hidden !important;
+    }
+    .print-sheet-wrapper:last-child {
+      page-break-after: auto !important;
+      break-after: auto !important;
     }
     .print-sheet-wrapper img {
       display: block !important;
       margin: 0 !important;
       padding: 0 !important;
+      object-fit: fill !important;
     }
   }
 
@@ -1810,13 +1814,34 @@
 
 <!-- Modal Guía de Impresión Exacta al 100% -->
 <div class="sync-modal-overlay" id="printModalOverlay">
-  <div class="sync-modal-box" style="max-width: 440px;">
+  <div class="sync-modal-box" style="max-width: 450px;">
     <h3 style="display: flex; align-items: center; gap: 8px;">
       <span>🖨️</span> Ajustes de Impresión al 100%
     </h3>
     <p class="sync-sub" style="margin-bottom: 12px;">
       Para que tus chapas salgan exactamente a los <b><span id="printBadgeTargetMM">70</span> mm</b> elegidos:
     </p>
+
+    <!-- Selector de hojas a imprimir -->
+    <div style="background: var(--surface-2); border: 1px solid var(--surface-border); border-radius: 10px; padding: 12px; margin-bottom: 12px;">
+      <div style="font-size: 11.5px; font-weight: 700; color: var(--accent-purple-light); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; justify-content: space-between; align-items: center;">
+        <span>📄 Hojas a Imprimir</span>
+        <span id="printScopeBadge" style="font-size: 11px; padding: 2px 8px; border-radius: 8px; background: rgba(124, 58, 237, 0.25); color: #fff; text-transform: none; font-weight: 600;"></span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px;">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+          <input type="radio" name="printScope" id="printScopeAll" value="all" checked style="accent-color: var(--accent-purple); cursor: pointer;">
+          <span><b>Todas las hojas con imágenes</b> <span id="printTotalSheetsInfo" style="color: var(--text-secondary); font-size: 12px;"></span></span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+          <input type="radio" name="printScope" id="printScopeCurrent" value="current" style="accent-color: var(--accent-purple); cursor: pointer;">
+          <span><b>Solo la hoja actual</b> <span id="printCurrentSheetInfo" style="color: var(--text-secondary); font-size: 12px;"></span></span>
+        </label>
+      </div>
+      <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px; line-height: 1.4;">
+        ℹ️ Las hojas vacías sin imágenes se omiten automáticamente para no desperdiciar papel.
+      </div>
+    </div>
 
     <div style="background: var(--surface-2); border: 1px solid var(--surface-border); border-radius: 10px; padding: 12px; margin-bottom: 14px; font-size: 12.5px; line-height: 1.6;">
       <div style="margin-bottom: 8px; display: flex; align-items: flex-start; gap: 8px;">
@@ -3606,12 +3631,31 @@
     showToast('Todas las hojas han sido descargadas');
   });
 
-  function triggerPrint() {
-    const page = getActivePage();
+  async function triggerPrint(scope = 'all') {
+    const printablePages = pages.filter(p => Object.values(p.cells).some(c => c && c.imgId));
+
+    let targetPages = [];
+    if (scope === 'current') {
+      const activeP = getActivePage();
+      const hasImages = Object.values(activeP.cells).some(c => c && c.imgId);
+      if (!hasImages) {
+        showToast('La hoja actual no tiene ninguna imagen para imprimir');
+        return;
+      }
+      targetPages = [activeP];
+    } else {
+      targetPages = printablePages;
+    }
+
+    if (!targetPages.length) {
+      showToast('No hay ninguna chapa con imagen para imprimir');
+      return;
+    }
+
     let [pw, ph] = PAPER_MM[selPaper.value] || PAPER_MM.a4;
     if (paperOrientation === 'landscape') { [pw, ph] = [ph, pw]; }
 
-    // Inyectar tamaño físico y orientación exacta para Chrome/Edge (evita que el navegador use portrait por defecto)
+    // Inyectar tamaño físico y orientación exacta para Chrome/Edge (evita distorsión y respeta hojas múltiples)
     let dynStyle = document.getElementById('dynamicPrintPageStyle');
     if (!dynStyle) {
       dynStyle = document.createElement('style');
@@ -3624,41 +3668,74 @@
         margin: 0mm;
       }
       @media print {
-        html, body, #printArea, .print-sheet-wrapper {
+        html, body {
+          width: ${pw}mm !important;
+          height: auto !important;
+          overflow: visible !important;
+        }
+        #printArea {
+          width: ${pw}mm !important;
+          height: auto !important;
+          position: static !important;
+        }
+        .print-sheet-wrapper {
           width: ${pw}mm !important;
           height: ${ph}mm !important;
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+          page-break-after: always !important;
+          break-after: page !important;
+          display: block !important;
+        }
+        .print-sheet-wrapper:last-child {
+          page-break-after: auto !important;
+          break-after: auto !important;
         }
         .print-sheet-wrapper img {
           width: ${pw}mm !important;
           height: ${ph}mm !important;
+          display: block !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          object-fit: fill !important;
         }
       }
     `;
 
-    showToast('Preparando vista de impresión al 100%...');
-    const outCanvas = generateHighResCanvas(page, 300);
-    const dataUrl = outCanvas.toDataURL('image/png');
+    showToast(`Preparando ${targetPages.length} hoja(s) para imprimir al 100%...`);
+    await new Promise(r => setTimeout(r, 60));
 
-    printArea.innerHTML = `
-      <div class="print-sheet-wrapper">
-        <img src="${dataUrl}" alt="Hoja de chapas">
-      </div>
-    `;
+    const wrappers = [];
+    for (let i = 0; i < targetPages.length; i++) {
+      const p = targetPages[i];
+      const outCanvas = generateHighResCanvas(p, 300);
+      const dataUrl = outCanvas.toDataURL('image/png');
+      wrappers.push(`
+        <div class="print-sheet-wrapper">
+          <img src="${dataUrl}" alt="${p.name || 'Hoja ' + (i + 1)}">
+        </div>
+      `);
+    }
+
+    printArea.innerHTML = wrappers.join('');
+
+    const cleanup = () => {
+      printArea.innerHTML = '';
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
 
     setTimeout(() => {
       window.print();
-      setTimeout(() => {
-        printArea.innerHTML = '';
-      }, 1000);
-    }, 250);
+      setTimeout(cleanup, 5000);
+    }, 300);
   }
 
   // IMPRESIÓN DIRECTA EXACTA A TAMAÑO 100% REAL
   btnDirectPrint.addEventListener('click', () => {
-    const page = getActivePage();
-    const hasAny = Object.values(page.cells).some(c => c && c.imgId);
-    if (!hasAny) {
-      showToast('La hoja actual no tiene ninguna imagen para imprimir');
+    const printablePages = pages.filter(p => Object.values(p.cells).some(c => c && c.imgId));
+    if (!printablePages.length) {
+      showToast('No hay ninguna chapa con imagen para imprimir en el proyecto');
       return;
     }
 
@@ -3669,10 +3746,39 @@
       printPaperTargetName.textContent = paperText;
     }
 
+    const activeP = getActivePage();
+    const activeHasImages = Object.values(activeP.cells).some(c => c && c.imgId);
+
+    const printTotalSheetsInfo = document.getElementById('printTotalSheetsInfo');
+    const printCurrentSheetInfo = document.getElementById('printCurrentSheetInfo');
+    const printScopeBadge = document.getElementById('printScopeBadge');
+    const printScopeAll = document.getElementById('printScopeAll');
+    const printScopeCurrent = document.getElementById('printScopeCurrent');
+
+    if (printTotalSheetsInfo) {
+      printTotalSheetsInfo.textContent = `(${printablePages.length} de ${pages.length} hoja${pages.length > 1 ? 's' : ''})`;
+    }
+    if (printScopeBadge) {
+      printScopeBadge.textContent = `${printablePages.length} hoja${printablePages.length > 1 ? 's' : ''} con diseño`;
+    }
+    if (printCurrentSheetInfo) {
+      const activeIdx = pages.indexOf(activeP) + 1;
+      printCurrentSheetInfo.textContent = `(Hoja ${activeIdx}${activeHasImages ? '' : ' - Vacía'})`;
+    }
+    if (printScopeCurrent) {
+      printScopeCurrent.disabled = !activeHasImages;
+      if (!activeHasImages && printScopeCurrent.checked && printScopeAll) {
+        printScopeAll.checked = true;
+      }
+    }
+    if (printScopeAll && activeHasImages && !printScopeCurrent.checked) {
+      printScopeAll.checked = true;
+    }
+
     if (printModalOverlay) {
       printModalOverlay.classList.add('open');
     } else {
-      triggerPrint();
+      triggerPrint('all');
     }
   });
 
@@ -3684,8 +3790,10 @@
 
   if (btnConfirmPrint) {
     btnConfirmPrint.addEventListener('click', () => {
+      const scopeRadio = document.querySelector('input[name="printScope"]:checked');
+      const scope = scopeRadio ? scopeRadio.value : 'all';
       if (printModalOverlay) printModalOverlay.classList.remove('open');
-      triggerPrint();
+      triggerPrint(scope);
     });
   }
 
