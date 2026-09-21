@@ -1342,7 +1342,7 @@
     <button class="btn btn-outline-cyan btn-sm" id="btnExportAll" title="Descargar todas las páginas en alta resolución">
       📑 Descargar Todas
     </button>
-    <button class="btn btn-outline-cyan btn-sm" id="btnExportImagesZip" title="Descargar cada chapa como imagen PNG individual (recortada en círculo) dentro de un archivo ZIP, sin montar la hoja">
+    <button class="btn btn-outline-cyan btn-sm" id="btnExportImagesZip" title="Descargar cada chapa de TODAS las hojas del proyecto como imagen PNG individual (recortada en círculo) dentro de un archivo ZIP, sin montar la hoja">
       🖼️ ZIP Imágenes
     </button>
     <button class="btn btn-primary" id="btnExportCurrent" title="Descargar la hoja visible en PNG listo para imprenta">
@@ -3548,65 +3548,86 @@
   }
 
   // --- DESCARGA DE CADA CHAPA COMO IMAGEN PNG INDIVIDUAL DENTRO DE UN .ZIP ---
+  // Recorre TODAS las páginas del proyecto que tengan al menos una imagen
+  // (igual que "Descargar Todas"), no solo la hoja actualmente visible.
   btnExportImagesZip.addEventListener('click', async () => {
-    const page = getActivePage();
     const grid = computeSheetGrid();
     const dpi = parseFloat(selDpi.value);
     const sizeMM = parseFloat(selBadgeSize.value);
     const specs = getBadgeSpecs(sizeMM, dpi);
     const cutPx = specs.cutPx;
 
-    const filledBadges = grid.badges.filter(b => {
-      const cellData = page.cells[b.cellKey];
-      return cellData && cellData.imgId;
-    });
+    const exportablePages = pages.filter(p => Object.values(p.cells).some(c => c && c.imgId));
 
-    if (!filledBadges.length) {
-      showToast('Esta hoja no tiene ninguna imagen');
+    if (!exportablePages.length) {
+      showToast('No hay ninguna chapa con imagen en el proyecto');
       return;
     }
 
+    // Total de chapas a exportar, sumando todas las páginas con contenido.
+    let totalBadges = 0;
+    exportablePages.forEach(p => {
+      totalBadges += grid.badges.filter(b => {
+        const cellData = p.cells[b.cellKey];
+        return cellData && cellData.imgId;
+      }).length;
+    });
+
     btnExportImagesZip.disabled = true;
-    showToast(`Generando ${filledBadges.length} imagen(es) en alta resolución...`);
+    showToast(`Generando ${totalBadges} imagen(es) en alta resolución...`);
 
     const cleanProj = sanitizeFileName(txtProjectName && txtProjectName.value.trim()) || 'Chapas';
     const usedNames = new Set();
     const files = [];
 
     try {
-      for (let i = 0; i < filledBadges.length; i++) {
-        const b = filledBadges[i];
-        const cellData = page.cells[b.cellKey];
+      let counter = 0;
+      for (let p = 0; p < exportablePages.length; p++) {
+        const page = exportablePages[p];
+        const cleanPage = sanitizeFileName(page.name || `Hoja ${p + 1}`) || `Hoja ${p + 1}`;
 
-        const canvas = document.createElement('canvas');
-        canvas.width = cutPx;
-        canvas.height = cutPx;
-        const ctx = canvas.getContext('2d');
-
-        // Se reutiliza exactamente el mismo motor de dibujo que la hoja final,
-        // pero renderizando una sola chapa (recorte circular, zoom, borde y
-        // rotación tal como los dejó el usuario), sin marcas de corte.
-        renderSingleBadgeToContext(ctx, cutPx / 2, cutPx / 2, cutPx, cellData, specs, {
-          isExport: true,
-          drawCropMark: false,
-          drawGuides: false,
-          isSelected: false,
-          isReal3D: false
+        const filledBadges = grid.badges.filter(b => {
+          const cellData = page.cells[b.cellKey];
+          return cellData && cellData.imgId;
         });
 
-        const imgItem = getImageById(cellData.imgId);
-        const baseName = sanitizeFileName(imgItem && imgItem.name ? imgItem.name.replace(/\.[^.]+$/, '') : 'Chapa') || 'Chapa';
+        for (let i = 0; i < filledBadges.length; i++) {
+          const b = filledBadges[i];
+          const cellData = page.cells[b.cellKey];
 
-        let name = `${cleanProj} - ${String(i + 1).padStart(2, '0')} - ${baseName}.png`;
-        let suffix = 1;
-        while (usedNames.has(name)) {
-          name = `${cleanProj} - ${String(i + 1).padStart(2, '0')} - ${baseName} (${suffix}).png`;
-          suffix++;
+          const canvas = document.createElement('canvas');
+          canvas.width = cutPx;
+          canvas.height = cutPx;
+          const ctx = canvas.getContext('2d');
+
+          // Se reutiliza exactamente el mismo motor de dibujo que la hoja final,
+          // pero renderizando una sola chapa (recorte circular, zoom, borde y
+          // rotación tal como los dejó el usuario), sin marcas de corte.
+          renderSingleBadgeToContext(ctx, cutPx / 2, cutPx / 2, cutPx, cellData, specs, {
+            isExport: true,
+            drawCropMark: false,
+            drawGuides: false,
+            isSelected: false,
+            isReal3D: false
+          });
+
+          const imgItem = getImageById(cellData.imgId);
+          const baseName = sanitizeFileName(imgItem && imgItem.name ? imgItem.name.replace(/\.[^.]+$/, '') : 'Chapa') || 'Chapa';
+
+          counter++;
+          // Se antepone el nombre de la hoja para que las imágenes de distintas
+          // páginas no se sobrescriban entre sí dentro del ZIP.
+          let name = `${cleanProj} - ${cleanPage} - ${String(i + 1).padStart(2, '0')} - ${baseName}.png`;
+          let suffix = 1;
+          while (usedNames.has(name)) {
+            name = `${cleanProj} - ${cleanPage} - ${String(i + 1).padStart(2, '0')} - ${baseName} (${suffix}).png`;
+            suffix++;
+          }
+          usedNames.add(name);
+
+          const data = await canvasToPngBytes(canvas);
+          files.push({ name, data });
         }
-        usedNames.add(name);
-
-        const data = await canvasToPngBytes(canvas);
-        files.push({ name, data });
       }
 
       const zipBlob = buildZipBlob(files);
