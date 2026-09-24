@@ -4198,10 +4198,33 @@
     refreshSyncUI();
   }
 
+  function updateOnlineStatus() {
+    if (navigator.onLine) {
+      btnSyncOpen.disabled = false;
+      btnSyncOpen.title = 'Sincronizar este proyecto con otro dispositivo usando un código';
+      btnSyncOpen.style.opacity = '';
+      btnSyncOpen.style.cursor = '';
+      const label = btnSyncOpen.querySelector('#btnSyncLabel') || btnSyncLabel;
+      const code = getSyncCode();
+      label.textContent = code ? code : 'Sincronizar';
+    } else {
+      btnSyncOpen.disabled = true;
+      btnSyncOpen.title = 'Sin internet — la sincronización no está disponible';
+      btnSyncOpen.style.opacity = '0.45';
+      btnSyncOpen.style.cursor = 'not-allowed';
+      btnSyncLabel.textContent = 'Sin internet';
+    }
+  }
+
+  window.addEventListener('online',  updateOnlineStatus);
+  window.addEventListener('offline', updateOnlineStatus);
+
   function refreshSyncUI() {
     const code = getSyncCode();
     syncCurrentCodeDisplay.textContent = code || 'Sin código todavía';
-    btnSyncLabel.textContent = code ? code : 'Sincronizar';
+    if (navigator.onLine) {
+      btnSyncLabel.textContent = code ? code : 'Sincronizar';
+    }
   }
 
   function setSyncStatus(msg) {
@@ -4209,7 +4232,19 @@
   }
 
   function dataUrlToBlob(dataUrl) {
-    return fetch(dataUrl).then(r => r.blob());
+    // Conversión directa sin fetch() — compatible con file:// y CSP estrictos
+    try {
+      const [header, base64] = dataUrl.split(',');
+      const mime = header.match(/:(.*?);/)[1];
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return Promise.resolve(new Blob([bytes], { type: mime }));
+    } catch (e) {
+      return Promise.reject(new Error('No se pudo procesar la imagen: ' + e.message));
+    }
   }
 
   function blobToDataUrl(blob) {
@@ -4325,6 +4360,8 @@
     redrawSheet();
     scheduleAutoSave(); // reflejar también en el autoguardado local (IndexedDB) de este dispositivo
   }
+
+  updateOnlineStatus(); // Estado inicial según conectividad actual
 
   btnSyncOpen.addEventListener('click', () => {
     refreshSyncUI();
