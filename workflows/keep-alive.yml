@@ -1,0 +1,39 @@
+name: Supabase Keep-Alive
+
+on:
+  schedule:
+    # Se ejecuta automáticamente cada 3 días a las 12:00 UTC
+    - cron: '0 12 */3 * *'
+  workflow_dispatch: # Permite probar el ping manualmente desde la pestaña 'Actions' en GitHub
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enviar ping de actividad a Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          URL="${SUPABASE_URL:-https://mshsowaeukiejpryjibk.supabase.co}"
+          KEY="${SUPABASE_ANON_KEY}"
+
+          if [ -z "$KEY" ]; then
+            echo "❌ Error: El secret SUPABASE_ANON_KEY no está configurado en el repositorio."
+            exit 1
+          fi
+
+          echo "📡 Enviando ping a la base de datos de Supabase..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "apikey: $KEY" \
+            -H "Authorization: Bearer $KEY" \
+            "$URL/rest/v1/proyectos?select=codigo&limit=1")
+
+          echo "Código HTTP recibido: $HTTP_STATUS"
+
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+            echo "✅ Base de datos activa y ping registrado con éxito en Supabase."
+          else
+            echo "⚠️ Respuesta inesperada del servidor (HTTP $HTTP_STATUS)."
+            exit 1
+          fi
