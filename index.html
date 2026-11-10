@@ -277,6 +277,26 @@
     background: rgba(245, 158, 11, 0.1);
     border-color: rgba(245, 158, 11, 0.25);
   }
+  .save-indicator.error {
+    color: var(--accent-pink);
+    background: rgba(244, 63, 94, 0.1);
+    border-color: rgba(244, 63, 94, 0.35);
+  }
+  .save-indicator { cursor: pointer; line-height: 1.15; white-space: nowrap; }
+  .save-indicator .save-lines { display: inline-flex; flex-direction: column; align-items: flex-start; }
+  .save-indicator .save-sub { font-size: 10px; font-weight: 500; opacity: 0.85; }
+  .save-indicator .save-sub:empty { display: none; }
+  .history-actions { display: inline-flex; gap: 4px; }
+  .history-actions .btn { padding: 4px 10px; font-size: 15px; line-height: 1; }
+  .btn-save {
+    background: rgba(16, 185, 129, 0.12);
+    color: var(--accent-emerald);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+  }
+  .btn-save:not(:disabled):hover {
+    background: rgba(16, 185, 129, 0.25);
+    border-color: var(--accent-emerald);
+  }
 
   /* PROJECT NAME & PWA STYLES */
   .project-name-box {
@@ -1304,9 +1324,15 @@
   </div>
 
   <div class="header-actions">
-    <div class="save-indicator" id="saveIndicator" title="Todos tus cambios se respaldan en el navegador continuamente">
-      <span id="saveIcon">✓</span> <span id="saveText">Guardado</span>
+    <div class="history-actions" role="group" aria-label="Deshacer y rehacer">
+      <button class="btn btn-secondary btn-sm" id="btnUndo" title="Deshacer (Ctrl+Z)" aria-label="Deshacer" disabled>↶</button>
+      <button class="btn btn-secondary btn-sm" id="btnRedo" title="Rehacer (Ctrl+Y)" aria-label="Rehacer" disabled>↷</button>
     </div>
+    <div class="save-indicator" id="saveIndicator" role="status" aria-live="polite" title="Tus cambios se guardan automáticamente">
+      <span id="saveIcon">✓</span>
+      <span class="save-lines"><span id="saveText">Guardado</span><span class="save-sub" id="saveCloudText"></span></span>
+    </div>
+    <button class="btn btn-save btn-sm" id="btnSaveNow" title="Guardar ahora en este equipo y en la nube (Ctrl+S)">✅ Guardar ahora</button>
 
     <div class="badge-stat">
       <span>Chapa:</span>
@@ -1869,7 +1895,7 @@
 </div>
 
 <!-- SDK de Supabase (sincronización entre dispositivos) -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 
 <!-- SCRIPT LOGIC -->
 <script>
@@ -3086,7 +3112,7 @@
         reader.onload = (e) => {
           const src = e.target.result;
           // Evitar duplicados: si ya existe una imagen idéntica en la biblioteca, no la duplicamos
-          const existing = library.find(item => item.src === src || (item.name === file.name && item.size === file.size));
+          const existing = library.find(item => item.src === src); // solo si el contenido es idéntico (nombre+peso iguales no bastan)
           if (existing) {
             activeImageId = existing.id;
             loaded++;
@@ -3986,93 +4012,467 @@
     });
   }
 
-  // --- PERSISTENCIA LOCAL (INDEXEDDB) - ANTI-PÉRDIDAS POR REINICIO ---
+  // --- PERSISTENCIA LOCAL (INDEXEDDB) - ANTI-PÉRDIDAS ---
+  // Dos bases: 'ChapasProDB' (configuración + hojas, liviano) y 'ChapasProImagesDB' (las fotos
+  // en base64, una por clave). Así cada autoguardado solo reescribe lo que cambió y no el
+  // proyecto completo con las 200+ fotos cada vez. Orden de escritura: primero las fotos,
+  // después el proyecto (si algo falla en medio, nunca queda un proyecto apuntando a fotos que no existen).
+  // La base del proyecto NO cambia de versión (así no se bloquea si hay otra pestaña con la
+  // versión anterior abierta); las fotos viven en una base aparte.
   const DB_NAME = 'ChapasProDB';
   const DB_STORE = 'projectData';
-  let dbInstance = null;
+  const IMG_DB_NAME = 'ChapasProImagesDB';
+  const IMG_STORE = 'projectImages';
+  const AUTOSAVE_DELAY_MS = 600;
 
-  function initDB() {
+  let dbInstance = null;
+  let imgDbInstance = null;
+  let autosaveReady = false;          // no se guarda nada hasta haber cargado el proyecto previo
+  let persistedImages = new Map();    // id -> src ya guardado en IndexedDB
+  let imageLoadFailures = 0;          // si > 0 no se limpian imágenes "huérfanas" del almacén
+  let lastSavedKey = null;            // huella del último estado guardado localmente
+  let localDirty = false;
+  let localSaving = false;
+  let saveTimeout = null;
+  let localChain = Promise.resolve();
+
+  // Estado visible del guardado (lo que muestra el indicador de la cabecera)
+  const SaveState = {
+    localSavedAt: null,   // ms del último guardado local confirmado
+    localError: null,     // texto si el guardado local falló
+    cloud: 'idle',        // idle | ok | pending | syncing | offline | error | conflict | blank | nocode
+    cloudSavedAt: null,   // ms de la última versión conocida en la nube
+    cloudError: null,
+    cloudProgress: ''
+  };
+
+  const saveCloudText = document.getElementById('saveCloudText');
+  const btnUndo = document.getElementById('btnUndo');
+  const btnRedo = document.getElementById('btnRedo');
+  const btnSaveNow = document.getElementById('btnSaveNow');
+
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* almacenamiento bloqueado */ } }
+  function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { /* idem */ } }
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+  function openDb(name, store, settledRef) {
     return new Promise((resolve) => {
-      const request = indexedDB.open(DB_NAME, 1);
+      let request;
+      try { request = indexedDB.open(name, 1); } catch (e) { resolve(null); return; }
       request.onupgradeneeded = (e) => {
         const db = e.target.result;
-        if (!db.objectStoreNames.contains(DB_STORE)) {
-          db.createObjectStore(DB_STORE);
-        }
+        if (!db.objectStoreNames.contains(store)) db.createObjectStore(store);
       };
       request.onsuccess = (e) => {
-        dbInstance = e.target.result;
-        resolve(dbInstance);
+        const db = e.target.result;
+        if (settledRef.timedOut) { try { db.close(); } catch (err) { /* nada */ } resolve(null); return; }
+        db.onversionchange = () => { try { db.close(); } catch (err) { /* nada */ } };
+        resolve(db);
       };
       request.onerror = () => resolve(null);
     });
   }
 
-  let saveTimeout = null;
-  function scheduleAutoSave() {
-    if (!dbInstance) return;
-    saveIndicator.classList.add('saving');
-    saveIcon.textContent = '⏳';
-    saveText.textContent = 'Guardando...';
-
-    clearTimeout(saveTimeout);
-    saveTimeout = setTimeout(async () => {
-      try {
-        const serializableLibrary = library.map(item => ({
-          id: item.id,
-          name: item.name,
-          size: item.size || null,
-          src: item.src,
-          remoteUrl: item.remoteUrl || null,
-          uploadedCode: item.uploadedCode || null
-        }));
-
-        const projectPayload = {
-          version: 2,
-          savedAt: Date.now(),
-          badgeSize: selBadgeSize.value,
-          fineCut: rngFineCut.value,
-          dpi: selDpi.value,
-          paper: selPaper.value,
-          orientation: paperOrientation,
-          layoutMode,
-          inspectorPreviewMode,
-          margin: rngMargin.value,
-          gap: rngGap.value,
-          defaultBorder: rngDefaultBorder.value,
-          showGuides: chkShowGuides.checked,
-          cropMarks: chkCropMarks.checked,
-          projectName: txtProjectName ? txtProjectName.value : 'Mis Chapas',
-          libCounter,
-          pageCounter,
-          activePageIndex,
-          selectedCellKey,
-          library: serializableLibrary,
-          pages
-        };
-
-        const tx = dbInstance.transaction(DB_STORE, 'readwrite');
-        const store = tx.objectStore(DB_STORE);
-        store.put(projectPayload, 'currentProject');
-
-        tx.oncomplete = () => {
-          saveIndicator.classList.remove('saving');
-          saveIcon.textContent = '✓';
-          saveText.textContent = 'Guardado';
-        };
-      } catch (err) {
-        console.warn('Error guardando en IndexedDB:', err);
-        saveIndicator.classList.remove('saving');
-        saveText.textContent = 'Guardado';
-      }
-    }, 600);
+  // Abre las dos bases. Si no responden en 10 s se sigue SIN guardado local (y se avisa),
+  // pero jamás se guarda "a ciegas" encima de lo que ya había.
+  async function initDB() {
+    const ref = { timedOut: false };
+    const timer = setTimeout(() => { ref.timedOut = true; }, 10000);
+    const result = await Promise.race([
+      Promise.all([openDb(DB_NAME, DB_STORE, ref), openDb(IMG_DB_NAME, IMG_STORE, ref)]),
+      new Promise(r => setTimeout(() => r([null, null]), 10000))
+    ]);
+    clearTimeout(timer);
+    const [projDb, imgDb] = result;
+    if (projDb && imgDb) {
+      dbInstance = projDb;
+      imgDbInstance = imgDb;
+    } else {
+      try { if (projDb) projDb.close(); if (imgDb) imgDb.close(); } catch (e) { /* nada */ }
+      dbInstance = null;
+      imgDbInstance = null;
+    }
+    return dbInstance;
   }
+
+  // Ejecuta una transacción y espera a que termine de verdad (o falle)
+  function idbRun(db, store, mode, fn) {
+    return new Promise((resolve, reject) => {
+      let tx;
+      try { tx = db.transaction(store, mode); fn(tx.objectStore(store)); } catch (e) { reject(e); return; }
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  }
+
+  // --- Estado del proyecto ---
+  function collectSettings() {
+    return {
+      badgeSize: selBadgeSize.value,
+      fineCut: rngFineCut.value,
+      dpi: selDpi.value,
+      paper: selPaper.value,
+      orientation: paperOrientation,
+      layoutMode,
+      inspectorPreviewMode,
+      margin: rngMargin.value,
+      gap: rngGap.value,
+      defaultBorder: rngDefaultBorder.value,
+      showGuides: chkShowGuides.checked,
+      cropMarks: chkCropMarks.checked,
+      projectName: txtProjectName ? txtProjectName.value : 'Mis Chapas'
+    };
+  }
+
+  // Objeto que se guarda (local o nube). Sin base64 de imágenes: esas van aparte.
+  function buildProjectState({ remoteLibrary = null } = {}) {
+    return {
+      version: 3,
+      savedAt: Date.now(),
+      ...collectSettings(),
+      libCounter,
+      pageCounter,
+      activePageIndex,
+      selectedCellKey,
+      library: remoteLibrary || library.map(it => ({
+        id: it.id,
+        name: it.name,
+        size: it.size || null,
+        remoteUrl: it.remoteUrl || null,
+        uploadedCode: it.uploadedCode || null
+      })),
+      pages
+    };
+  }
+
+  // "Huella" del contenido real del proyecto. Cambia solo cuando el usuario cambia algo
+  // (no por zoom, selección de celda, modo de vista, etc.).
+  function getStateParts() {
+    const settings = collectSettings();
+    const keySettings = { ...settings };
+    delete keySettings.inspectorPreviewMode;
+    const pagesJSON = JSON.stringify(pages);
+    const libSig = library.map(it => it.id + '\u0001' + it.name).join('\u0002');
+    return { settings, pagesJSON, key: JSON.stringify(keySettings) + '\u0003' + pagesJSON + '\u0003' + libSig };
+  }
+
+  function isProjectBlank() {
+    return library.length === 0 &&
+      pages.every(p => !p.cells || Object.values(p.cells).every(c => !c || !c.imgId));
+  }
+
+  // --- Formato de fechas/horas para el indicador ---
+  function fmtClock(ts) {
+    return new Date(ts).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+  function fmtStampShort(ts) {
+    const d = new Date(ts);
+    if (d.toDateString() === new Date().toDateString()) return fmtClock(ts);
+    return d.toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  }
+  function fmtFull(ts) {
+    return new Date(ts).toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'medium' });
+  }
+  function fmtAgo(ts) {
+    const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+    if (s < 5) return 'justo ahora';
+    if (s < 60) return `hace ${s} s`;
+    const m = Math.round(s / 60);
+    if (m < 60) return `hace ${m} min`;
+    const h = Math.round(m / 60);
+    if (h < 24) return `hace ${h} h`;
+    return `hace ${Math.round(h / 24)} d`;
+  }
+
+  function renderSaveStatus() {
+    if (!saveIndicator) return;
+    const code = getSyncCode();
+    let level = 'ok';
+    let icon = '✓';
+    let text = 'Sin cambios todavía';
+
+    if (SaveState.localError) { level = 'error'; icon = '⚠️'; text = 'No se pudo guardar en este equipo'; }
+    else if (localSaving) { level = 'warn'; icon = '⏳'; text = 'Guardando…'; }
+    else if (localDirty) { level = 'warn'; icon = '●'; text = 'Cambios sin guardar'; }
+    else if (SaveState.localSavedAt) { text = 'Guardado ' + fmtStampShort(SaveState.localSavedAt); }
+
+    let cloud = '';
+    switch (SaveState.cloud) {
+      case 'nocode':
+        cloud = '☁ Solo en este equipo (sin código)';
+        break;
+      case 'offline':
+        cloud = cloudDirty ? '☁ Sin internet · se subirá al volver' : '☁ Sin internet';
+        if (cloudDirty && level === 'ok') level = 'warn';
+        break;
+      case 'pending':
+        cloud = '☁ Pendiente de subir…';
+        if (level === 'ok') level = 'warn';
+        break;
+      case 'syncing':
+        cloud = '☁ Subiendo…' + (SaveState.cloudProgress ? ' ' + SaveState.cloudProgress : '');
+        if (level === 'ok') level = 'warn';
+        break;
+      case 'error':
+        cloud = '☁ Error al subir · reintentando';
+        level = 'error';
+        icon = '⚠️';
+        break;
+      case 'conflict':
+        cloud = '☁ Hay otra versión en la nube · pulsa Guardar';
+        level = 'error';
+        icon = '⚠️';
+        break;
+      case 'blank':
+        cloud = '☁ Proyecto vacío · no se sube';
+        break;
+      default: // idle / ok
+        cloud = SaveState.cloudSavedAt ? '☁ Nube ' + fmtStampShort(SaveState.cloudSavedAt)
+              : (code ? '☁ Código ' + code : '');
+    }
+
+    saveIndicator.classList.toggle('saving', level === 'warn');
+    saveIndicator.classList.toggle('error', level === 'error');
+    saveIcon.textContent = icon;
+    saveText.textContent = text;
+    if (saveCloudText) saveCloudText.textContent = cloud;
+
+    const lines = [];
+    lines.push(SaveState.localSavedAt
+      ? `Último guardado en este equipo: ${fmtFull(SaveState.localSavedAt)} (${fmtAgo(SaveState.localSavedAt)})`
+      : 'Aún no hay guardado en este equipo en esta sesión.');
+    if (SaveState.localError) lines.push('Error local: ' + SaveState.localError);
+    if (code) {
+      lines.push(SaveState.cloudSavedAt
+        ? `Última versión en la nube (código ${code}): ${fmtFull(SaveState.cloudSavedAt)} (${fmtAgo(SaveState.cloudSavedAt)})`
+        : `Código de nube: ${code} (todavía sin versión subida)`);
+      if (SaveState.cloudError) lines.push('Error de nube: ' + SaveState.cloudError);
+    } else {
+      lines.push('Sin código de sincronización: tu proyecto solo existe en este navegador. Crea uno en 🔗 Sincronizar.');
+    }
+    lines.push('Guardar ahora: Ctrl+S · Deshacer: Ctrl+Z · Rehacer: Ctrl+Y');
+    saveIndicator.title = lines.join('\n');
+  }
+  setInterval(() => { if (autosaveReady) renderSaveStatus(); }, 30000); // refresca los "hace X min"
+
+  // --- Guardado local ---
+  function describeIdbError(err) {
+    if (err && err.name === 'QuotaExceededError') return 'No queda espacio en el navegador. Libera espacio o respalda en la nube.';
+    return (err && err.message) ? err.message : 'error desconocido';
+  }
+
+  // Cola: los guardados nunca se pisan entre sí
+  function persistLocal(opts) {
+    const p = localChain.then(() => doPersistLocal(opts || {}));
+    localChain = p.catch(() => {});
+    return p;
+  }
+
+  function doPersistLocal({ force = false, markCloud = true } = {}) {
+    return new Promise((resolve) => {
+      if (!dbInstance || !imgDbInstance) {
+        SaveState.localError = 'No se pudo abrir el guardado de este navegador (¿modo privado u otra pestaña bloqueándolo?). Usa 🔗 Sincronizar para respaldar en la nube.';
+        renderSaveStatus();
+        resolve(false);
+        return;
+      }
+      let parts;
+      try { parts = getStateParts(); } catch (e) { SaveState.localError = describeIdbError(e); renderSaveStatus(); resolve(false); return; }
+      const changed = parts.key !== lastSavedKey;
+      if (!force && !changed) {
+        localDirty = false;
+        renderSaveStatus();
+        resolve(true);
+        return;
+      }
+
+      const keyAtStart = parts.key;
+      const toWrite = library.filter(it => persistedImages.get(it.id) !== it.src);
+      const libIds = new Set(library.map(i => i.id));
+      const toDelete = [];
+      if (imageLoadFailures === 0) {
+        persistedImages.forEach((_, id) => { if (!libIds.has(id)) toDelete.push(id); });
+      }
+
+      localSaving = true;
+      renderSaveStatus();
+
+      let settled = false;
+      const finish = (ok, err) => {
+        if (settled) return;
+        settled = true;
+        localSaving = false;
+        if (ok) {
+          toWrite.forEach(it => persistedImages.set(it.id, it.src));
+          toDelete.forEach(id => persistedImages.delete(id));
+          lastSavedKey = keyAtStart;
+          SaveState.localSavedAt = Date.now();
+          SaveState.localError = null;
+          try { localDirty = (getStateParts().key !== lastSavedKey); } catch (e) { localDirty = false; }
+          if (changed && markCloud) setCloudDirty(true);
+        } else {
+          SaveState.localError = describeIdbError(err);
+          console.warn('Error guardando en IndexedDB:', err);
+          setTimeout(() => { if (SaveState.localError && autosaveReady) scheduleAutoSave(); }, 10000);
+        }
+        renderSaveStatus();
+        resolve(ok);
+      };
+
+      (async () => {
+        try {
+          // Copia fija del estado: si el usuario sigue editando durante el guardado, no se mezcla
+          const payload = JSON.parse(JSON.stringify(buildProjectState()));
+          if (toWrite.length) {
+            await idbRun(imgDbInstance, IMG_STORE, 'readwrite', (st) => toWrite.forEach(it => st.put(it.src, it.id)));
+          }
+          await idbRun(dbInstance, DB_STORE, 'readwrite', (st) => st.put(payload, 'currentProject'));
+          finish(true);
+          if (toDelete.length) {
+            idbRun(imgDbInstance, IMG_STORE, 'readwrite', (st) => toDelete.forEach(id => st.delete(id))).catch(() => {});
+          }
+        } catch (err) {
+          finish(false, err);
+        }
+      })();
+    });
+  }
+
+  function scheduleAutoSave() {
+    if (!autosaveReady) return;
+    try {
+      if (getStateParts().key !== lastSavedKey) localDirty = true;
+    } catch (e) { localDirty = true; }
+    renderSaveStatus();
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(autosaveTick, AUTOSAVE_DELAY_MS);
+  }
+
+  async function autosaveTick() {
+    try { captureHistory(); } catch (e) { console.warn('Historial:', e); }
+    await persistLocal();
+  }
+
+  // Guarda ya mismo (al cerrar la pestaña, al cambiar de app, etc.)
+  function flushNow() {
+    if (!autosaveReady) return;
+    clearTimeout(saveTimeout);
+    try { captureHistory(); } catch (e) { /* nada */ }
+    persistLocal();
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushNow(); });
+  window.addEventListener('pagehide', flushNow);
+  window.addEventListener('beforeunload', (e) => {
+    flushNow();
+    // Solo avisamos si de verdad no hay forma de guardar en este equipo
+    if (autosaveReady && (SaveState.localError || !dbInstance || !imgDbInstance) && !isProjectBlank()) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+
+  // Pide al navegador que no borre los datos de la app por falta de espacio
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* nada */ }
+
+  // --- HISTORIAL: DESHACER / REHACER (Ctrl+Z / Ctrl+Y) ---
+  const UNDO_LIMIT = 100;
+  let undoStack = [];   // { key, settings, pagesJSON, libRefs, libCounter, pageCounter, ui }
+  let undoIndex = -1;
+  let restoringHistory = false;
+
+  function updateHistoryButtons() {
+    if (btnUndo) btnUndo.disabled = undoIndex <= 0;
+    if (btnRedo) btnRedo.disabled = undoIndex >= undoStack.length - 1;
+  }
+
+  function captureHistory() {
+    if (restoringHistory) return;
+    const parts = getStateParts();
+    if (undoIndex >= 0 && undoStack[undoIndex].key === parts.key) return; // sin cambios reales
+    undoStack.splice(undoIndex + 1);   // lo "rehacible" se descarta al hacer un cambio nuevo
+    undoStack.push({
+      key: parts.key,
+      settings: parts.settings,
+      pagesJSON: parts.pagesJSON,
+      libRefs: library.slice(),        // referencias: no copia los base64
+      libCounter,
+      pageCounter,
+      ui: { activePageIndex, selectedCellKey }
+    });
+    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+    undoIndex = undoStack.length - 1;
+    updateHistoryButtons();
+  }
+
+  function resetUndoHistory() {
+    undoStack = [];
+    undoIndex = -1;
+    captureHistory();
+  }
+
+  function restoreSnapshot(snap) {
+    restoringHistory = true;
+    try {
+      const s = { ...snap.settings };
+      delete s.inspectorPreviewMode; // el modo de vista no forma parte del historial
+      applySettingsToUI(s);
+      pages = JSON.parse(snap.pagesJSON);
+      library = snap.libRefs.slice();
+      libCounter = Math.max(libCounter, snap.libCounter || 1);
+      pageCounter = Math.max(pageCounter, snap.pageCounter || pages.length);
+      activePageIndex = Math.min(snap.ui.activePageIndex || 0, pages.length - 1);
+      selectedCellKey = snap.ui.selectedCellKey || '0_0';
+      if (!library.some(x => x.id === activeImageId)) activeImageId = library[0] ? library[0].id : null;
+      renderTray();
+      updateTotalCutDisplay();
+      redrawSheet();
+      snap.key = getStateParts().key; // ajusta la huella al estado realmente restaurado
+    } finally {
+      restoringHistory = false;
+    }
+    updateHistoryButtons();
+    scheduleAutoSave(); // persiste (local y nube) el estado restaurado
+  }
+
+  function undo() {
+    captureHistory(); // incluye lo último que se hizo y aún no estaba registrado
+    if (undoIndex <= 0) { showToast('No hay nada que deshacer'); return; }
+    undoIndex--;
+    restoreSnapshot(undoStack[undoIndex]);
+    showToast('↶ Deshecho (Ctrl+Y para rehacer)');
+  }
+
+  function redo() {
+    if (undoIndex >= undoStack.length - 1) { showToast('No hay nada que rehacer'); return; }
+    undoIndex++;
+    restoreSnapshot(undoStack[undoIndex]);
+    showToast('↷ Rehecho');
+  }
+
+  if (btnUndo) btnUndo.addEventListener('click', undo);
+  if (btnRedo) btnRedo.addEventListener('click', redo);
+  if (btnSaveNow) btnSaveNow.addEventListener('click', () => { saveNow(); });
+  if (saveIndicator) saveIndicator.addEventListener('click', () => { const b = document.getElementById('btnSyncOpen'); if (b && !b.disabled) b.click(); });
+
+  window.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+    const k = (e.key || '').toLowerCase();
+    if (k === 's') { e.preventDefault(); saveNow(); return; }
+    // En cajas de texto se deja el deshacer nativo del navegador
+    const t = e.target;
+    const tag = t && t.tagName;
+    const inText = t && (t.isContentEditable || tag === 'TEXTAREA' ||
+      (tag === 'INPUT' && /^(text|search|email|url|tel|password|number)$/i.test(t.type || 'text')));
+    if (inText) return;
+    if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+    else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
+  });
 
   // --- Restaura el estado de la app a partir de un objeto de proyecto ---
   // (compartido entre el autoguardado local y la sincronización remota)
-  async function applyProjectData(data) {
-    if (!data || !data.pages || !data.pages.length) return false;
-
+  function applySettingsToUI(data) {
     if (data.badgeSize) selBadgeSize.value = data.badgeSize;
     if (data.fineCut !== undefined) {
       rngFineCut.value = data.fineCut;
@@ -4114,6 +4514,12 @@
     lblGap.textContent = `${rngGap.value}mm`;
     lblDefaultBorder.textContent = `${rngDefaultBorder.value}%`;
 
+  }
+
+  async function applyProjectData(data) {
+    if (!data || !data.pages || !data.pages.length) return false;
+    applySettingsToUI(data);
+
     libCounter = data.libCounter || 1;
     pageCounter = data.pageCounter || data.pages.length;
     activePageIndex = Math.min(data.activePageIndex || 0, data.pages.length - 1);
@@ -4122,11 +4528,12 @@
 
     library = [];
     if (data.library && data.library.length) {
-      const loadPromises = data.library.map(raw => {
+      const loaded = new Array(data.library.length); // se conserva el orden original de la bandeja
+      const loadPromises = data.library.map((raw, idx) => {
         return new Promise((resImg) => {
           const img = new Image();
           img.onload = () => {
-            library.push({
+            loaded[idx] = {
               id: raw.id,
               name: raw.name,
               size: raw.size || null,
@@ -4134,7 +4541,7 @@
               src: raw.src,
               remoteUrl: raw.remoteUrl || null,
               uploadedCode: raw.uploadedCode || null
-            });
+            };
             resImg();
           };
           img.onerror = () => resImg();
@@ -4142,6 +4549,12 @@
         });
       });
       await Promise.all(loadPromises);
+      library = loaded.filter(Boolean);
+      const failed = data.library.length - library.length;
+      if (failed > 0) {
+        imageLoadFailures += failed; // mientras haya fallos no se limpia nada del almacén local
+        showToast(`⚠️ ${failed} imagen(es) no se pudieron cargar`);
+      }
     }
 
     renderTray();
@@ -4149,23 +4562,64 @@
     return true;
   }
 
-  async function loadAutoSave() {
-    if (!dbInstance) return false;
-    return new Promise((resolve) => {
+  // Lee proyecto + imágenes guardadas localmente
+  function idbReadAll() {
+    const readProject = new Promise((resolve) => {
       try {
         const tx = dbInstance.transaction(DB_STORE, 'readonly');
-        const store = tx.objectStore(DB_STORE);
-        const req = store.get('currentProject');
-
-        req.onsuccess = async () => {
-          const ok = await applyProjectData(req.result);
-          resolve(ok);
-        };
-        req.onerror = () => resolve(false);
-      } catch (e) {
-        resolve(false);
-      }
+        const req = tx.objectStore(DB_STORE).get('currentProject');
+        tx.oncomplete = () => resolve({ ok: true, value: req.result });
+        tx.onerror = () => resolve({ ok: false });
+        tx.onabort = () => resolve({ ok: false });
+      } catch (e) { resolve({ ok: false }); }
     });
+    const readImages = new Promise((resolve) => {
+      try {
+        const tx = imgDbInstance.transaction(IMG_STORE, 'readonly');
+        const keysReq = tx.objectStore(IMG_STORE).getAllKeys();
+        const valsReq = tx.objectStore(IMG_STORE).getAll();
+        tx.oncomplete = () => {
+          const images = new Map();
+          (keysReq.result || []).forEach((k, i) => images.set(k, valsReq.result[i]));
+          resolve({ ok: true, value: images });
+        };
+        tx.onerror = () => resolve({ ok: false });
+        tx.onabort = () => resolve({ ok: false });
+      } catch (e) { resolve({ ok: false }); }
+    });
+    return Promise.all([readProject, readImages]).then(([p, im]) => {
+      if (!p.ok || !im.ok) return null;
+      return { project: p.value, images: im.value };
+    });
+  }
+
+  async function loadAutoSave() {
+    if (!dbInstance || !imgDbInstance) return false;
+    const stored = await idbReadAll();
+    if (!stored || !stored.project) return false;
+    const data = stored.project;
+
+    if (Array.isArray(data.library)) {
+      data.library.forEach(raw => {
+        const fromStore = stored.images.get(raw.id);
+        if (!raw.src && fromStore) raw.src = fromStore;         // formato nuevo: foto en su propio almacén
+        if (fromStore && raw.src === fromStore) persistedImages.set(raw.id, fromStore);
+      });
+      const missing = data.library.filter(raw => !raw.src).length;
+      if (missing > 0) {
+        imageLoadFailures += missing;
+        data.library = data.library.filter(raw => raw.src);
+        showToast(`⚠️ ${missing} imagen(es) guardadas no se pudieron recuperar`);
+      }
+    }
+
+    const ok = await applyProjectData(data);
+    if (ok) {
+      lastSavedKey = getStateParts().key;
+      SaveState.localSavedAt = data.savedAt || null;
+      localDirty = false;
+    }
+    return ok;
   }
 
   // --- SINCRONIZACIÓN ENTRE DISPOSITIVOS (SUPABASE) ---
@@ -4185,7 +4639,9 @@
 
   function generateSyncCode() {
     let raw = '';
-    for (let i = 0; i < 8; i++) raw += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+    const buf = new Uint32Array(8);
+    (window.crypto || window.msCrypto).getRandomValues(buf);
+    for (let i = 0; i < 8; i++) raw += CODE_CHARS[buf[i] % CODE_CHARS.length];
     return raw.slice(0, 4) + '-' + raw.slice(4);
   }
 
@@ -4256,75 +4712,88 @@
     });
   }
 
-  // Sube el proyecto actual (config + imágenes) bajo un código dado
-  async function syncPush(code) {
-    setSyncStatus('Verificando imágenes...');
-
-    // 1) Subir imágenes a Storage (sin duplicar ni re-subir las que ya están en la nube)
-    const remoteLibrary = [];
-    for (let i = 0; i < library.length; i++) {
-      const item = library[i];
-      const path = `${code}/${item.id}.png`;
-
-      // Si ya fue subida bajo este mismo código, reutilizamos su URL directamente sin re-subir bytes
-      if (item.uploadedCode === code && item.remoteUrl) {
-        remoteLibrary.push({ id: item.id, name: item.name, url: item.remoteUrl });
-        continue;
+  // Ejecuta `worker` sobre cada elemento con un máximo de `limit` en paralelo; si uno falla, aborta.
+  async function runPool(items, limit, worker) {
+    let next = 0;
+    let failure = null;
+    const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (!failure) {
+        const i = next++;
+        if (i >= items.length) return;
+        try { await worker(items[i], i); } catch (e) { failure = failure || e; }
       }
+    });
+    await Promise.all(runners);
+    if (failure) throw failure;
+  }
 
-      setSyncStatus(`Subiendo imágenes... ${i + 1}/${library.length}`);
-      const blob = await dataUrlToBlob(item.src);
-      const { error: upErr } = await syncClient.storage.from(SUPABASE_BUCKET).upload(path, blob, {
-        upsert: true,
-        contentType: blob.type || 'image/png'
-      });
-      if (upErr) throw new Error('Error subiendo imagen: ' + upErr.message);
+  function extForMime(mime) {
+    if (/jpe?g/i.test(mime || '')) return 'jpg';
+    if (/webp/i.test(mime || '')) return 'webp';
+    if (/gif/i.test(mime || '')) return 'gif';
+    return 'png';
+  }
+
+  function reportCloudProgress(text, short) {
+    SaveState.cloudProgress = short || '';
+    setSyncStatus(text);
+    renderSaveStatus();
+  }
+
+  // Sube las imágenes nuevas y la configuración. Cada imagen va a una ruta ÚNICA:
+  // nunca se sobrescribe un archivo existente (evita imágenes "viejas" por caché del CDN
+  // y que un proyecto nuevo pise las fotos de otro). Devuelve la marca de tiempo guardada.
+  async function syncPush(code) {
+    const pending = library.filter(item => !(item.uploadedCode === code && item.remoteUrl));
+    let done = 0;
+    if (pending.length) reportCloudProgress(`Subiendo imágenes... 0/${pending.length}`, `0/${pending.length}`);
+
+    await runPool(pending, 4, async (item) => {
+      let blob;
+      try { blob = await dataUrlToBlob(item.src); }
+      catch (e) { throw new Error(`Imagen "${item.name}": ${e.message}`); }
+      const path = `${code}/${item.id}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}.${extForMime(blob.type)}`;
+      let lastErr = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { error } = await syncClient.storage.from(SUPABASE_BUCKET).upload(path, blob, {
+          upsert: false,
+          contentType: blob.type || 'image/png',
+          cacheControl: '31536000'
+        });
+        if (!error) { lastErr = null; break; }
+        if (/exist|duplicate/i.test(error.message || '')) { lastErr = null; break; } // ya había subido (reintento)
+        lastErr = error;
+        await sleep(500 * (attempt + 1));
+      }
+      if (lastErr) throw new Error(`No se pudo subir "${item.name}": ${lastErr.message}`);
       const { data: urlData } = syncClient.storage.from(SUPABASE_BUCKET).getPublicUrl(path);
       item.remoteUrl = urlData.publicUrl;
       item.uploadedCode = code;
-      remoteLibrary.push({ id: item.id, name: item.name, url: urlData.publicUrl });
-    }
+      done++;
+      reportCloudProgress(`Subiendo imágenes... ${done}/${pending.length}`, `${done}/${pending.length}`);
+    });
 
-    setSyncStatus('Guardando configuración...');
-
-    // 2) Armar el payload de configuración (igual que el autoguardado local, pero con library remota)
-    const configPayload = {
-      version: 2,
-      savedAt: Date.now(),
-      badgeSize: selBadgeSize.value,
-      fineCut: rngFineCut.value,
-      dpi: selDpi.value,
-      paper: selPaper.value,
-      orientation: paperOrientation,
-      layoutMode,
-      inspectorPreviewMode,
-      margin: rngMargin.value,
-      gap: rngGap.value,
-      defaultBorder: rngDefaultBorder.value,
-      showGuides: chkShowGuides.checked,
-      cropMarks: chkCropMarks.checked,
-      projectName: txtProjectName ? txtProjectName.value : 'Mis Chapas',
-      libCounter,
-      pageCounter,
-      activePageIndex,
-      selectedCellKey,
-      library: remoteLibrary,
-      pages
-    };
-
-    // 3) Guardar/actualizar la fila en Supabase
-    const { error: dbErr } = await syncClient
+    reportCloudProgress('Guardando configuración...', '');
+    const remoteLibrary = library.map(item => ({ id: item.id, name: item.name, url: item.remoteUrl }));
+    const payload = buildProjectState({ remoteLibrary });
+    payload.version = 2; // formato de la nube (sin cambios)
+    const nowIso = new Date().toISOString();
+    const { data: saved, error: dbErr } = await syncClient
       .from(SUPABASE_TABLE)
-      .upsert({ codigo: code, config: configPayload, actualizado_en: new Date().toISOString() });
+      .upsert({ codigo: code, config: payload, actualizado_en: nowIso })
+      .select('actualizado_en')
+      .maybeSingle();
     if (dbErr) throw new Error('Error guardando en la base: ' + dbErr.message);
+    return (saved && saved.actualizado_en) || nowIso;
   }
 
-  // Descarga un proyecto remoto por código y reemplaza el proyecto local actual
+  // Descarga un proyecto de la nube y reemplaza el local. Si alguna imagen no se puede
+  // descargar, NO se cambia nada (antes se omitía en silencio y luego se perdía al guardar).
   async function syncPull(code) {
     setSyncStatus('Buscando código...');
     const { data: row, error } = await syncClient
       .from(SUPABASE_TABLE)
-      .select('config')
+      .select('config, actualizado_en')
       .eq('codigo', code)
       .maybeSingle();
 
@@ -4332,34 +4801,234 @@
     if (!row) throw new Error('No existe ningún proyecto guardado con ese código.');
 
     const remoteConfig = row.config;
-    setSyncStatus('Descargando imágenes...');
-
-    // Convertir cada imagen remota (url) de vuelta a base64 para encajar con el formato local (IndexedDB)
-    const localLibrary = [];
     const remoteLib = remoteConfig.library || [];
-    for (let i = 0; i < remoteLib.length; i++) {
-      const raw = remoteLib[i];
-      setSyncStatus(`Descargando imágenes... ${i + 1}/${remoteLib.length}`);
-      const resp = await fetch(raw.url);
-      if (!resp.ok) continue;
-      const blob = await resp.blob();
-      const dataUrl = await blobToDataUrl(blob);
-      localLibrary.push({
-        id: raw.id,
-        name: raw.name,
-        src: dataUrl,
-        remoteUrl: raw.url,
-        uploadedCode: code
-      });
-    }
+    const downloaded = new Array(remoteLib.length);
+    let done = 0;
 
-    remoteConfig.library = localLibrary;
+    await runPool(remoteLib, 6, async (raw, i) => {
+      let lastErr = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const resp = await fetch(raw.url, { cache: 'no-store' });
+          if (!resp.ok) throw new Error('HTTP ' + resp.status);
+          const blob = await resp.blob();
+          const dataUrl = await blobToDataUrl(blob);
+          downloaded[i] = { id: raw.id, name: raw.name, src: dataUrl, remoteUrl: raw.url, uploadedCode: code };
+          done++;
+          setSyncStatus(`Descargando imágenes... ${done}/${remoteLib.length}`);
+          return;
+        } catch (e) {
+          lastErr = e;
+          await sleep(400 * (attempt + 1));
+        }
+      }
+      throw new Error(`No se pudo descargar la imagen "${raw.name}" (${lastErr && lastErr.message}). No se cambió tu proyecto.`);
+    });
+
+    remoteConfig.library = downloaded;
 
     setSyncStatus('Aplicando proyecto...');
-    await applyProjectData(remoteConfig);
+    clearTimeout(saveTimeout);
+    const applied = await applyProjectData(remoteConfig);
+    if (!applied) throw new Error('El proyecto de ese código está vacío o dañado; no se cambió nada.');
     redrawSheet();
-    scheduleAutoSave(); // reflejar también en el autoguardado local (IndexedDB) de este dispositivo
+    resetUndoHistory();
+    await persistLocal({ force: true, markCloud: false });
+    const ms = Date.parse(row.actualizado_en || '');
+    setCloudStamp(code, row.actualizado_en || new Date().toISOString());
+    setCloudDirty(false);
+    SaveState.cloudSavedAt = isNaN(ms) ? Date.now() : ms;
+    SaveState.cloud = 'ok';
+    SaveState.cloudError = null;
+    renderSaveStatus();
   }
+
+  // --- AUTOGUARDADO EN LA NUBE (SUPABASE) ---
+  // Cada cambio se guarda primero en este equipo y, pasados unos segundos, también en la nube
+  // si hay un código de sincronización. Reglas de seguridad:
+  //  · un proyecto vacío no se sube solo (para no borrar tu respaldo por accidente);
+  //  · si en la nube hay una versión que este equipo no conoce (otro dispositivo), el
+  //    autoguardado se detiene y te pide confirmar antes de pisarla.
+  const CLOUD_DEBOUNCE_MS = 3000;
+  const LS_DIRTY = 'chapixCloudDirty';
+  const stampKey = (code) => 'chapixRemoteStamp:' + code;
+  let cloudDirty = lsGet(LS_DIRTY) === '1';
+  let cloudTimer = null;
+  let cloudRunning = false;
+  let cloudRetryMs = 5000;
+  let cloudChain = Promise.resolve();
+
+  function getCloudStamp(code) { return lsGet(stampKey(code)); }
+  function setCloudStamp(code, v) { lsSet(stampKey(code), v); }
+
+  function setCloudDirty(v) {
+    cloudDirty = !!v;
+    lsSet(LS_DIRTY, cloudDirty ? '1' : '0');
+    if (cloudDirty) scheduleCloudSync();
+  }
+
+  function refreshCloudIdle() {
+    const code = getSyncCode();
+    if (!code) {
+      SaveState.cloud = 'nocode';
+      SaveState.cloudSavedAt = null;
+    } else {
+      const st = Date.parse(getCloudStamp(code) || '');
+      SaveState.cloudSavedAt = isNaN(st) ? null : st;
+      if (SaveState.cloud !== 'conflict') SaveState.cloud = cloudDirty ? 'pending' : 'ok';
+    }
+    renderSaveStatus();
+  }
+
+  function scheduleCloudSync(delay) {
+    if (cloudRunning) return; // el ciclo en curso se reprograma solo al terminar
+    clearTimeout(cloudTimer);
+    const code = getSyncCode();
+    if (!code) { SaveState.cloud = 'nocode'; renderSaveStatus(); return; }
+    if (!cloudDirty) { refreshCloudIdle(); return; }
+    if (SaveState.cloud === 'conflict') { renderSaveStatus(); return; }
+    if (!navigator.onLine) { SaveState.cloud = 'offline'; renderSaveStatus(); return; }
+    if (isProjectBlank()) { SaveState.cloud = 'blank'; renderSaveStatus(); return; }
+    SaveState.cloud = 'pending';
+    renderSaveStatus();
+    cloudTimer = setTimeout(() => runCloudSync({ manual: false }), delay === undefined ? CLOUD_DEBOUNCE_MS : delay);
+  }
+
+  function runCloudSync(opts) {
+    cloudChain = cloudChain.catch(() => {}).then(() => doCloudSync(opts || {}));
+    return cloudChain;
+  }
+
+  async function doCloudSync({ manual = false } = {}) {
+    const code = getSyncCode();
+    if (!code) return { ok: false, reason: 'nocode', message: 'No hay código de sincronización.' };
+    if (!manual && !cloudDirty) return { ok: true, reason: 'clean' };
+    if (!manual && SaveState.cloud === 'conflict') return { ok: false, reason: 'conflict' };
+    if (!navigator.onLine) {
+      SaveState.cloud = 'offline';
+      renderSaveStatus();
+      return { ok: false, reason: 'offline', message: 'Sin conexión a internet.' };
+    }
+
+    cloudRunning = true;
+    SaveState.cloud = 'syncing';
+    SaveState.cloudError = null;
+    SaveState.cloudProgress = '';
+    renderSaveStatus();
+
+    try {
+      // 1) Primero a salvo en este equipo
+      await persistLocal();
+
+      // 2) Proyecto vacío: no se sube solo
+      if (isProjectBlank()) {
+        if (!manual) { SaveState.cloud = 'blank'; return { ok: false, reason: 'blank' }; }
+        if (!confirm('Este proyecto está vacío (sin imágenes ni chapas). Si lo guardas, el proyecto que está en la nube también quedará vacío.\n\n¿Continuar?')) {
+          SaveState.cloud = cloudDirty ? 'blank' : 'ok';
+          return { ok: false, reason: 'cancelled' };
+        }
+      }
+
+      // 3) ¿La nube cambió desde lo último que este equipo vio?
+      const { data: remoteRow, error: selErr } = await syncClient
+        .from(SUPABASE_TABLE).select('actualizado_en').eq('codigo', code).maybeSingle();
+      if (selErr) throw new Error('No se pudo consultar la nube: ' + selErr.message);
+      if (remoteRow) {
+        const knownMs = Date.parse(getCloudStamp(code) || '');
+        const remoteMs = Date.parse(remoteRow.actualizado_en || '');
+        const same = !isNaN(knownMs) && !isNaN(remoteMs) && Math.abs(knownMs - remoteMs) < 2;
+        if (!same) {
+          if (!isNaN(remoteMs)) SaveState.cloudSavedAt = remoteMs;
+          if (!manual) {
+            SaveState.cloud = 'conflict';
+            return { ok: false, reason: 'conflict', message: 'Hay otra versión en la nube.' };
+          }
+          const when = isNaN(remoteMs) ? 'una fecha desconocida' : new Date(remoteMs).toLocaleString('es-CL');
+          const okOverwrite = confirm(
+            `En la nube (código ${code}) hay un proyecto guardado el ${when} que podría ser distinto del que tienes abierto ahora.\n\n` +
+            'Aceptar = reemplazar el de la nube por el de este equipo.\n' +
+            'Cancelar = no tocar la nube (puedes traerlo con «Cargar desde código»).'
+          );
+          if (!okOverwrite) {
+            SaveState.cloud = 'conflict';
+            return { ok: false, reason: 'cancelled' };
+          }
+        }
+      }
+
+      // 4) Subir
+      const keyAtStart = getStateParts().key;
+      const stamp = await syncPush(code);
+      setCloudStamp(code, stamp);
+      const stampMs = Date.parse(stamp);
+      SaveState.cloudSavedAt = isNaN(stampMs) ? Date.now() : stampMs;
+      await persistLocal({ force: true, markCloud: false }); // guarda también las URLs remotas de las imágenes
+      const unchanged = getStateParts().key === keyAtStart;
+      cloudDirty = !unchanged;
+      lsSet(LS_DIRTY, cloudDirty ? '1' : '0');
+      SaveState.cloud = 'ok';
+      SaveState.cloudError = null;
+      cloudRetryMs = 5000;
+      return { ok: true, reason: 'saved', savedAt: SaveState.cloudSavedAt };
+    } catch (err) {
+      console.error(err);
+      SaveState.cloud = 'error';
+      SaveState.cloudError = (err && err.message) || String(err);
+      if (!manual) {
+        clearTimeout(cloudTimer);
+        cloudTimer = setTimeout(() => {
+          if (SaveState.cloud === 'error') { SaveState.cloud = 'pending'; runCloudSync({ manual: false }); }
+        }, cloudRetryMs);
+        cloudRetryMs = Math.min(cloudRetryMs * 2, 60000);
+      }
+      return { ok: false, reason: 'error', message: SaveState.cloudError };
+    } finally {
+      cloudRunning = false;
+      SaveState.cloudProgress = '';
+      renderSaveStatus();
+      if (cloudDirty && SaveState.cloud === 'ok') scheduleCloudSync(1500); // hubo cambios mientras se subía
+    }
+  }
+
+  // Botón "Guardar ahora" / Ctrl+S: guarda en el equipo y, si hay código, también en la nube
+  async function saveNow() {
+    if (btnSaveNow) btnSaveNow.disabled = true;
+    try {
+      clearTimeout(saveTimeout);
+      captureHistory();
+      const localOk = await persistLocal({ force: true, markCloud: true });
+      if (!localOk) showToast('⚠️ No se pudo guardar en este equipo: ' + SaveState.localError);
+      const code = getSyncCode();
+      if (!code) {
+        if (localOk) showToast('✅ Guardado en este equipo · ' + fmtClock(Date.now()) + '. Para respaldar en la nube crea un código en 🔗 Sincronizar');
+        return { ok: localOk, reason: 'nocode' };
+      }
+      if (!navigator.onLine) {
+        showToast('✅ Guardado en este equipo · sin internet: se subirá a la nube al reconectar');
+        return { ok: localOk, reason: 'offline' };
+      }
+      const res = await runCloudSync({ manual: true });
+      if (res.ok) showToast('✅ Guardado en el equipo y en la nube · ' + fmtClock(res.savedAt || Date.now()));
+      else if (res.reason === 'cancelled') showToast('Guardado en este equipo. No se modificó la nube.');
+      else showToast('⚠️ Guardado en este equipo, pero falló la nube: ' + (res.message || res.reason));
+      return res;
+    } finally {
+      if (btnSaveNow) btnSaveNow.disabled = false;
+    }
+  }
+
+  window.addEventListener('online', () => {
+    if (getSyncCode() && cloudDirty) {
+      if (SaveState.cloud === 'offline' || SaveState.cloud === 'error') SaveState.cloud = 'pending';
+      scheduleCloudSync(1500);
+    } else {
+      refreshCloudIdle();
+    }
+  });
+  window.addEventListener('offline', () => {
+    if (getSyncCode() && SaveState.cloud !== 'conflict') SaveState.cloud = 'offline';
+    renderSaveStatus();
+  });
 
   updateOnlineStatus(); // Estado inicial según conectividad actual
 
@@ -4376,7 +5045,9 @@
   btnSyncGenerate.addEventListener('click', () => {
     const newCode = generateSyncCode();
     setSyncCode(newCode);
-    setSyncStatus('Código generado. Tocá "Guardar en este código" para subir tu proyecto.');
+    SaveState.cloud = 'pending';
+    setCloudDirty(true); // el proyecto actual se sube solo a este código nuevo
+    setSyncStatus('Código generado: ' + newCode + '. Tu proyecto se subirá automáticamente (o pulsa "Guardar en este código").');
   });
 
   btnSyncPush.addEventListener('click', async () => {
@@ -4384,12 +5055,18 @@
     if (!code) {
       code = generateSyncCode();
       setSyncCode(code);
+      setCloudDirty(true);
     }
     btnSyncPush.disabled = true;
     try {
-      await syncPush(code);
-      setSyncStatus('✅ Proyecto guardado en el código ' + code);
-      showToast('Proyecto sincronizado: ' + code);
+      const res = await saveNow();
+      if (res && res.ok && res.reason === 'saved') {
+        setSyncStatus('✅ Proyecto guardado en la nube (código ' + code + ') · ' + fmtClock(res.savedAt || Date.now()));
+      } else if (res && res.reason === 'cancelled') {
+        setSyncStatus('No se subió nada (cancelado). La nube quedó como estaba.');
+      } else if (res && res.message) {
+        setSyncStatus('❌ ' + res.message);
+      }
     } catch (err) {
       console.error(err);
       setSyncStatus('❌ ' + err.message);
@@ -4401,16 +5078,20 @@
   btnSyncPull.addEventListener('click', async () => {
     const inputCode = syncCodeInput.value.trim().toUpperCase();
     if (!inputCode) {
-      setSyncStatus('Escribí un código primero.');
+      setSyncStatus('Escribe un código primero.');
       return;
     }
-    if (!confirm('Esto va a reemplazar el proyecto que tenés abierto ahora mismo en este dispositivo. ¿Continuar?')) {
+    const pendingWarn = (cloudDirty && getSyncCode())
+      ? '\n\n⚠️ Ojo: tienes cambios que todavía NO están en la nube y se perderían.'
+      : '';
+    if (!confirm('Esto va a reemplazar el proyecto que tienes abierto ahora mismo en este dispositivo (no se podrá deshacer).' + pendingWarn + '\n\n¿Continuar?')) {
       return;
     }
     btnSyncPull.disabled = true;
     try {
       await syncPull(inputCode);
       setSyncCode(inputCode);
+      refreshCloudIdle();
       setSyncStatus('✅ Proyecto cargado desde ' + inputCode);
       showToast('Proyecto sincronizado desde ' + inputCode);
       syncModalOverlay.classList.remove('open');
@@ -4426,7 +5107,12 @@
 
   // --- BOTÓN NUEVO PROYECTO ---
   btnResetProject.addEventListener('click', () => {
-    if (confirm('¿Deseas iniciar un nuevo proyecto limpio? Se vaciarán las hojas y la biblioteca actual.')) {
+    const code = getSyncCode();
+    const extra = code
+      ? `\n\nTu proyecto en la nube (código ${code}) NO se borra: no se reemplazará sin que lo confirmes.`
+      : '';
+    if (confirm('¿Deseas iniciar un nuevo proyecto limpio? Se vaciarán las hojas y la biblioteca actual.' + extra + '\n\n(Puedes deshacerlo con Ctrl+Z.)')) {
+      captureHistory(); // deja el proyecto actual en el historial para poder volver
       library = [];
       libCounter = 1;
       activeImageId = null;
@@ -4434,14 +5120,11 @@
       pageCounter = 1;
       activePageIndex = 0;
       selectedCellKey = '0_0';
+      // El proyecto nuevo ya no "es" el de la nube: la próxima subida pedirá confirmación explícita
+      if (code) lsDel(stampKey(code));
       renderTray();
-      redrawSheet();
-
-      if (dbInstance) {
-        const tx = dbInstance.transaction(DB_STORE, 'readwrite');
-        tx.objectStore(DB_STORE).delete('currentProject');
-      }
-      showToast('Proyecto reiniciado');
+      redrawSheet(); // dispara el autoguardado local
+      showToast('Proyecto reiniciado (Ctrl+Z para deshacer)');
     }
   });
 
@@ -4490,6 +5173,24 @@
 
     redrawSheet();
     btnFitSheet.click();
+
+    // Desde aquí sí se permite guardar (antes se podría pisar el proyecto guardado con uno vacío)
+    autosaveReady = true;
+    undoStack = [];
+    undoIndex = -1;
+    captureHistory(); // punto de partida del historial
+    refreshCloudIdle();
+    if (!dbInstance || !imgDbInstance) {
+      SaveState.localError = 'No se pudo abrir el guardado de este navegador (¿modo privado u otra pestaña bloqueándolo?). Usa 🔗 Sincronizar para respaldar en la nube.';
+    }
+    renderSaveStatus();
+
+    // Migra proyectos guardados con el formato antiguo y repara imágenes faltantes en el almacén
+    if (dbInstance && imgDbInstance && library.some(it => persistedImages.get(it.id) !== it.src)) {
+      persistLocal({ force: true, markCloud: false });
+    }
+    // Si quedaron cambios sin subir en la sesión anterior, se suben ahora
+    if (getSyncCode() && cloudDirty) scheduleCloudSync(2500);
   })();
 
   // --- PWA SERVICE WORKER & INSTALACIÓN DE ESCRITORIO ---
