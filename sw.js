@@ -1,5 +1,5 @@
 // Service Worker para Generador de Chapas Pro (PWA Offline con Actualización Automática)
-const CACHE_NAME = 'chapas-pro-v8';
+const CACHE_NAME = 'chapas-pro-v10';
 
 const PRECACHE_ASSETS = [
   './',
@@ -36,6 +36,15 @@ self.addEventListener('activate', (event) => {
 // 2. Para otros recursos estáticos (imágenes, iconos, fuentes): CACHE-FIRST con respaldo offline.
 self.addEventListener('fetch', (event) => {
   if (!event.request.url.startsWith('http')) return;
+
+  // Solo GET. Las escrituras (POST/PUT/PATCH) nunca pasan por la caché.
+  if (event.request.method !== 'GET') return;
+
+  // Supabase (base de datos y Storage) NUNCA se cachea aquí: dejamos que el navegador
+  // vaya directo a la red. Si no, «Cargar desde código» podría traer una config vieja.
+  try {
+    if (new URL(event.request.url).hostname.endsWith('.supabase.co')) return;
+  } catch (e) { /* URL inválida: seguir normal */ }
 
   const isNavigation = event.request.mode === 'navigate' ||
                        event.request.destination === 'document' ||
